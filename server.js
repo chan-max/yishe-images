@@ -352,7 +352,7 @@ app.post('/api/resize', async (req, res) => {
     const outputFilename = `resized_${Date.now()}_${filename}`;
     const outputPath = path.join(outputDir, outputFilename);
     
-    await imagemagick.resize(inputPath, outputPath, {
+    const command = await imagemagick.resize(inputPath, outputPath, {
       width: parseInt(width),
       height: parseInt(height),
       quality: quality || 90,
@@ -362,7 +362,8 @@ app.post('/api/resize', async (req, res) => {
     res.json({
       success: true,
       outputFile: outputFilename,
-      path: `/output/${outputFilename}`
+      path: `/output/${outputFilename}`,
+      command: command
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -430,7 +431,7 @@ app.post('/api/crop', async (req, res) => {
     const outputFilename = `cropped_${Date.now()}_${filename}`;
     const outputPath = path.join(outputDir, outputFilename);
     
-    await imagemagick.crop(inputPath, outputPath, {
+    const command = await imagemagick.crop(inputPath, outputPath, {
       x: parseInt(x),
       y: parseInt(y),
       width: parseInt(width),
@@ -440,7 +441,8 @@ app.post('/api/crop', async (req, res) => {
     res.json({
       success: true,
       outputFile: outputFilename,
-      path: `/output/${outputFilename}`
+      path: `/output/${outputFilename}`,
+      command: command
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -498,7 +500,7 @@ app.post('/api/rotate', async (req, res) => {
     const outputFilename = `rotated_${Date.now()}_${filename}`;
     const outputPath = path.join(outputDir, outputFilename);
     
-    await imagemagick.rotate(inputPath, outputPath, {
+    const command = await imagemagick.rotate(inputPath, outputPath, {
       degrees: parseFloat(degrees),
       backgroundColor: backgroundColor || 'transparent'
     });
@@ -506,7 +508,8 @@ app.post('/api/rotate', async (req, res) => {
     res.json({
       success: true,
       outputFile: outputFilename,
-      path: `/output/${outputFilename}`
+      path: `/output/${outputFilename}`,
+      command: command
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -567,7 +570,7 @@ app.post('/api/convert', async (req, res) => {
     const outputFilename = `${baseName}.${format}`;
     const outputPath = path.join(outputDir, outputFilename);
     
-    await imagemagick.convert(inputPath, outputPath, {
+    const command = await imagemagick.convert(inputPath, outputPath, {
       format: format.toLowerCase(),
       quality: quality || 90
     });
@@ -575,7 +578,8 @@ app.post('/api/convert', async (req, res) => {
     res.json({
       success: true,
       outputFile: outputFilename,
-      path: `/output/${outputFilename}`
+      path: `/output/${outputFilename}`,
+      command: command
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -716,12 +720,148 @@ app.post('/api/watermark', async (req, res) => {
       options.watermarkScale = parseFloat(watermarkScale) || 1.0;
     }
     
-    await imagemagick.watermark(inputPath, outputPath, options);
+    const command = await imagemagick.watermark(inputPath, outputPath, options);
     
     res.json({
       success: true,
       outputFile: outputFilename,
-      path: `/output/${outputFilename}`
+      path: `/output/${outputFilename}`,
+      command: command
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/effects:
+ *   post:
+ *     summary: 应用图片效果（图片裂变功能）
+ *     tags: [Effects]
+ *     description: 支持多种图片效果，可以同时应用多个效果。效果类型包括：黑白化、颜色调整、滤镜、马赛克、模糊、锐化、浮雕、边缘检测、油画、素描、负片、怀旧、噪点、像素化等
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - filename
+ *               - effects
+ *             properties:
+ *               filename:
+ *                 type: string
+ *                 description: 已上传的文件名
+ *                 example: "1234567890-123456789.jpg"
+ *               effects:
+ *                 type: array
+ *                 description: 要应用的效果列表，按顺序执行
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - type
+ *                   properties:
+ *                     type:
+ *                       type: string
+ *                       description: 效果类型
+ *                       enum: [grayscale, negate, sepia, blur, gaussian-blur, motion-blur, sharpen, unsharp, charcoal, oil-painting, sketch, emboss, edge, posterize, pixelate, mosaic, brightness, contrast, saturation, hue, colorize, tint, noise, despeckle, texture, vignette, solarize, swirl, wave, implode, explode, spread, normalize, equalize, gamma, threshold, quantize]
+ *                     radius:
+ *                       type: number
+ *                       description: 半径参数（用于模糊、锐化等效果）
+ *                     sigma:
+ *                       type: number
+ *                       description: 标准差参数（用于模糊、锐化等效果）
+ *                     intensity:
+ *                       type: number
+ *                       description: 强度参数（用于各种效果）
+ *                     value:
+ *                       type: number
+ *                       description: 数值参数（用于亮度、对比度等调整）
+ *                     color:
+ *                       type: string
+ *                       description: 颜色值（用于着色、色调等效果）
+ *                     size:
+ *                       type: number
+ *                       description: 尺寸参数（用于像素化、马赛克等效果）
+ *                     angle:
+ *                       type: number
+ *                       description: 角度参数（用于运动模糊、漩涡等效果）
+ *                     amplitude:
+ *                       type: number
+ *                       description: 振幅参数（用于波浪效果）
+ *                     wavelength:
+ *                       type: number
+ *                       description: 波长参数（用于波浪效果）
+ *                     amount:
+ *                       type: number
+ *                       description: 数量参数（用于各种效果）
+ *                     threshold:
+ *                       type: number
+ *                       description: 阈值参数（用于阈值化等效果）
+ *                     colors:
+ *                       type: integer
+ *                       description: 颜色数量（用于量化效果）
+ *                     levels:
+ *                       type: integer
+ *                       description: 级别数（用于海报化效果）
+ *                     noiseType:
+ *                       type: string
+ *                       description: 噪点类型（Uniform, Gaussian, Impulse, Laplacian, Poisson, Random）
+ *                     textureType:
+ *                       type: string
+ *                       description: 纹理类型
+ *                     degrees:
+ *                       type: number
+ *                       description: 角度（度）
+ *     responses:
+ *       200:
+ *         description: 处理成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 outputFile:
+ *                   type: string
+ *                   description: 输出文件名
+ *                 path:
+ *                   type: string
+ *                   description: 输出文件路径
+ *       400:
+ *         description: 参数错误
+ *       500:
+ *         description: 处理失败
+ */
+app.post('/api/effects', async (req, res) => {
+  try {
+    const { filename, effects } = req.body;
+    
+    if (!filename) {
+      return res.status(400).json({ error: '缺少文件名' });
+    }
+    
+    if (!Array.isArray(effects) || effects.length === 0) {
+      return res.status(400).json({ error: '至少需要指定一个效果' });
+    }
+    
+    const inputPath = path.join(uploadsDir, filename);
+    if (!fs.existsSync(inputPath)) {
+      return res.status(404).json({ error: '文件不存在' });
+    }
+    
+    const outputFilename = `effects_${Date.now()}_${filename}`;
+    const outputPath = path.join(outputDir, outputFilename);
+    
+    const command = await imagemagick.applyEffects(inputPath, outputPath, effects);
+    
+    res.json({
+      success: true,
+      outputFile: outputFilename,
+      path: `/output/${outputFilename}`,
+      command: command
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -787,7 +927,7 @@ app.post('/api/adjust', async (req, res) => {
     const outputFilename = `adjusted_${Date.now()}_${filename}`;
     const outputPath = path.join(outputDir, outputFilename);
     
-    await imagemagick.adjust(inputPath, outputPath, {
+    const command = await imagemagick.adjust(inputPath, outputPath, {
       brightness: brightness || 0,
       contrast: contrast || 0,
       saturation: saturation || 0
@@ -796,7 +936,8 @@ app.post('/api/adjust', async (req, res) => {
     res.json({
       success: true,
       outputFile: outputFilename,
-      path: `/output/${outputFilename}`
+      path: `/output/${outputFilename}`,
+      command: command
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -856,7 +997,7 @@ app.post('/api/filter', async (req, res) => {
     const outputFilename = `filtered_${Date.now()}_${filename}`;
     const outputPath = path.join(outputDir, outputFilename);
     
-    await imagemagick.applyFilter(inputPath, outputPath, {
+    const command = await imagemagick.applyFilter(inputPath, outputPath, {
       filterType: filterType,
       intensity: intensity || 1
     });
@@ -864,7 +1005,8 @@ app.post('/api/filter', async (req, res) => {
     res.json({
       success: true,
       outputFile: outputFilename,
-      path: `/output/${outputFilename}`
+      path: `/output/${outputFilename}`,
+      command: command
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -941,12 +1083,13 @@ app.post('/api/batch', async (req, res) => {
       const outputFilename = `batch_${Date.now()}_${filename}`;
       const outputPath = path.join(outputDir, outputFilename);
       
-      await imagemagick.batchProcess(inputPath, outputPath, operations);
+      const command = await imagemagick.batchProcess(inputPath, outputPath, operations);
       
       results.push({
         original: filename,
         output: outputFilename,
-        path: `/output/${outputFilename}`
+        path: `/output/${outputFilename}`,
+        command: command
       });
     }
     

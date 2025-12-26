@@ -278,6 +278,21 @@
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       margin: 0.5rem 0;
     }
+    .image-comparison-container {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+    .image-comparison-item {
+      flex: 1;
+      text-align: center;
+    }
+    .image-comparison-item img {
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
     .compact-grid {
       margin: 0.5rem 0 !important;
     }
@@ -777,15 +792,28 @@
 
             <!-- 结果区域 -->
             <div v-if="state.resultImage" class="ui segment" style="margin-top: 1.5rem;">
-              <h3 class="ui dividing header">处理结果</h3>
-              <img :src="state.resultImage" class="image-preview" alt="处理结果">
-              <div style="margin-top: 1rem;">
-                <a :href="state.resultImage" :download="state.resultFilename" class="ui small primary button">
-                  <i class="download icon"></i> 下载图片
-                </a>
-                <button class="ui small button" @click="useAsSource">
-                  作为新源图片
-                </button>
+              <h3 class="ui dividing header">对比预览</h3>
+              <div class="ui two column grid" style="margin: 0;">
+                <div class="column" style="padding: 0.5rem;">
+                  <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.9em; color: #666;">原始图片</strong>
+                  </div>
+                  <img v-if="state.currentImage" :src="state.currentImage" class="image-preview" alt="原始图片" style="max-height: 400px;">
+                </div>
+                <div class="column" style="padding: 0.5rem;">
+                  <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.9em; color: #666;">处理结果</strong>
+                  </div>
+                  <img :src="state.resultImage" class="image-preview" alt="处理结果" style="max-height: 400px;">
+                  <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                    <a :href="state.resultImage" :download="state.resultFilename" class="ui small primary button" style="flex: 1;">
+                      <i class="download icon"></i> 下载图片
+                    </a>
+                    <button class="ui small button" @click="useAsSource" style="flex: 1;">
+                      作为新源图片
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -983,15 +1011,429 @@
 
             <!-- 结果区域 -->
             <div v-if="state.watermarkResultImage" class="ui segment compact-segment" style="margin-top: 1rem;">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">处理结果</h3>
-              <img :src="state.watermarkResultImage" class="image-preview" alt="处理结果">
-              <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
-                <a :href="state.watermarkResultImage" :download="state.watermarkResultFilename" class="ui small primary button" style="flex: 1;">
-                  <i class="download icon"></i> 下载图片
-                </a>
-                <button class="ui small button" @click="useWatermarkAsSource" style="flex: 1;">
-                  作为新源图片
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">对比预览</h3>
+              <div class="ui two column grid" style="margin: 0;">
+                <div class="column" style="padding: 0.5rem;">
+                  <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.9em; color: #666;">原始图片</strong>
+                  </div>
+                  <img v-if="state.watermarkCurrentImage" :src="state.watermarkCurrentImage" class="image-preview" alt="原始图片" style="max-height: 400px;">
+                </div>
+                <div class="column" style="padding: 0.5rem;">
+                  <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.9em; color: #666;">处理结果</strong>
+                  </div>
+                  <img :src="state.watermarkResultImage" class="image-preview" alt="处理结果" style="max-height: 400px;">
+                  <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+                    <a :href="state.watermarkResultImage" :download="state.watermarkResultFilename" class="ui small primary button" style="flex: 1;">
+                      <i class="download icon"></i> 下载图片
+                    </a>
+                    <button class="ui small button" @click="useWatermarkAsSource" style="flex: 1;">
+                      作为新源图片
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 图片裂变 -->
+        <div class="view-container" :class="{ active: state.currentView === 'effects' }">
+          <div class="section">
+            <h1 class="ui header">
+              <i class="magic icon"></i>
+              <div class="content">
+                图片裂变
+                <div class="sub header">应用各种图片效果，支持多种效果组合</div>
+              </div>
+            </h1>
+
+            <!-- 上传区域 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">上传图片</h3>
+              
+              <!-- 统一输入框 -->
+              <div class="ui form">
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（网络 URL 或选择本地文件）</label>
+                  <div class="ui action input" style="font-size: 0.9em;">
+                    <input type="text" v-model="state.effectsImageUrl" placeholder="输入网络图片 URL" @keyup.enter="handleEffectsUrlUpload" style="font-size: 0.9em;">
+                    <button class="ui primary button" :class="{ loading: state.loading.effectsUrlUpload }" @click="handleEffectsUrlUpload" :disabled="!state.effectsImageUrl || state.loading.effectsUrlUpload" style="font-size: 0.85em; padding: 0.5em 0.75em;">
+                      <i class="download icon"></i> 加载
+                    </button>
+                  </div>
+                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">支持 JPG, PNG, GIF, BMP, WEBP, SVG, TIFF</p>
+                </div>
+              </div>
+              <div v-if="state.effectsCurrentImage" style="margin-top: 0.75rem;">
+                <img :src="state.effectsCurrentImage" class="image-preview" alt="当前图片">
+                <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
+                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>文件名:</strong> {{ state.effectsCurrentFilename }}</p>
+                  <p v-if="state.effectsImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;"><strong>尺寸:</strong> {{ state.effectsImageInfo.width }} × {{ state.effectsImageInfo.height }} px</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 效果选择区域 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">
+                效果列表
+                <button class="ui tiny button" @click="addEffect" style="margin-left: 0.5rem; font-size: 0.8em;">
+                  <i class="plus icon"></i> 添加效果
                 </button>
+              </h3>
+              
+              <div v-if="state.effectsList.length === 0" class="ui message" style="padding: 1rem; text-align: center; color: #999;">
+                点击"添加效果"按钮开始添加图片效果
+              </div>
+
+              <div v-for="(effect, index) in state.effectsList" :key="index" class="ui segment" style="margin-bottom: 0.75rem; padding: 0.75rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                  <strong style="font-size: 0.9em;">效果 {{ index + 1 }}: {{ getEffectName(effect.type) }}</strong>
+                  <button class="ui tiny red button" @click="removeEffect(index)" style="font-size: 0.75em; padding: 0.25em 0.5em;">
+                    <i class="trash icon"></i> 删除
+                  </button>
+                </div>
+                
+                <div class="ui form compact-form">
+                  <div class="field form-field">
+                    <label style="font-size: 0.85em;">效果类型</label>
+                    <select class="ui dropdown" v-model="effect.type" style="font-size: 0.9em;" @change="updateEffectParams(effect)">
+                      <optgroup label="基础效果">
+                        <option value="grayscale">黑白化</option>
+                        <option value="negate">负片</option>
+                        <option value="sepia">怀旧</option>
+                      </optgroup>
+                      <optgroup label="模糊和锐化">
+                        <option value="blur">模糊</option>
+                        <option value="gaussian-blur">高斯模糊</option>
+                        <option value="motion-blur">运动模糊</option>
+                        <option value="sharpen">锐化</option>
+                        <option value="unsharp">非锐化遮罩</option>
+                      </optgroup>
+                      <optgroup label="艺术效果">
+                        <option value="charcoal">炭笔画</option>
+                        <option value="oil-painting">油画</option>
+                        <option value="sketch">素描</option>
+                        <option value="emboss">浮雕</option>
+                        <option value="edge">边缘检测</option>
+                        <option value="posterize">海报化</option>
+                      </optgroup>
+                      <optgroup label="像素化">
+                        <option value="pixelate">像素化</option>
+                        <option value="mosaic">马赛克</option>
+                      </optgroup>
+                      <optgroup label="颜色调整">
+                        <option value="brightness">亮度</option>
+                        <option value="contrast">对比度</option>
+                        <option value="saturation">饱和度</option>
+                        <option value="hue">色相</option>
+                        <option value="colorize">着色</option>
+                        <option value="tint">色调</option>
+                      </optgroup>
+                      <optgroup label="特殊效果">
+                        <option value="noise">噪点</option>
+                        <option value="despeckle">去噪点</option>
+                        <option value="vignette">晕影</option>
+                        <option value="solarize">曝光</option>
+                        <option value="swirl">漩涡</option>
+                        <option value="wave">波浪</option>
+                        <option value="implode">内爆</option>
+                        <option value="explode">爆炸</option>
+                        <option value="spread">扩散</option>
+                        <option value="normalize">标准化</option>
+                        <option value="equalize">均衡化</option>
+                        <option value="gamma">伽马校正</option>
+                        <option value="threshold">阈值化</option>
+                        <option value="quantize">量化</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <!-- 效果说明区域 -->
+                  <div class="ui info message" style="margin-top: 0.75rem; padding: 0.75rem; font-size: 0.85em;">
+                    <div style="margin-bottom: 0.5rem;">
+                      <strong style="color: #2185d0;">定义：</strong>
+                      <span>{{ getEffectOfficialTerm(effect.type) }}</span>
+                    </div>
+                    <div style="margin-bottom: 0.5rem;">
+                      <strong style="color: #2185d0;">描述：</strong>
+                      <span>{{ getEffectDescription(effect.type) }}</span>
+                    </div>
+                    <div style="color: #666; font-size: 0.9em;">
+                      <strong>效果说明：</strong>
+                      <span>{{ getEffectExplanation(effect.type) }}</span>
+                    </div>
+                  </div>
+
+                  <!-- 参数表单区域 -->
+                  <div class="ui divider" style="margin: 0.75rem 0;"></div>
+                  <div style="font-size: 0.85em; color: #666; margin-bottom: 0.5rem; font-weight: bold;">效果参数</div>
+                  
+                  <!-- 灰度转换方法参数 -->
+                  <template v-if="needsMethod(effect.type)">
+                    <div class="field form-field" style="margin-bottom: 0.75rem;">
+                      <label style="font-size: 0.85em;">转换方法</label>
+                      <select class="ui dropdown" v-model="effect.method" style="font-size: 0.9em;">
+                        <option value="Rec601Luma">Rec601 亮度加权（标准）</option>
+                        <option value="Rec709Luma">Rec709 亮度加权</option>
+                        <option value="luminance">亮度加权法</option>
+                        <option value="average">平均法</option>
+                        <option value="desaturate">去饱和度法</option>
+                      </select>
+                      <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">选择灰度转换的算法方法</p>
+                    </div>
+                  </template>
+
+                  <!-- 灰度强度参数 -->
+                  <template v-if="needsGrayscaleIntensity(effect.type)">
+                    <div class="field form-field" style="margin-bottom: 0.75rem;">
+                      <label style="font-size: 0.85em;">灰度强度 <span style="color: #999; font-weight: normal;">(%)</span></label>
+                      <input type="range" v-model.number="effect.intensity" min="0" max="100" step="1" style="width: 100%; margin-bottom: 0.25rem;">
+                      <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="number" v-model.number="effect.intensity" min="0" max="100" step="1" style="flex: 1; font-size: 0.9em;">
+                        <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.intensity }}%</span>
+                      </div>
+                      <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">控制灰度化的强度，100%为完全黑白，0%为原图</p>
+                    </div>
+                  </template>
+                  
+                  <!-- 两列布局的参数表单 -->
+                  <div class="two fields" style="margin-bottom: 0.5rem;">
+                    <!-- 半径参数 -->
+                    <template v-if="needsRadius(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">半径 <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'radius') }})</span></label>
+                        <input type="range" v-model.number="effect.radius" :min="getMinValue(effect.type, 'radius')" :max="getMaxValue(effect.type, 'radius')" :step="getStepValue(effect.type, 'radius')" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.radius" :min="getMinValue(effect.type, 'radius')" :max="getMaxValue(effect.type, 'radius')" :step="getStepValue(effect.type, 'radius')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.radius, getStepValue(effect.type, 'radius')) }}</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'radius') }}</p>
+                      </div>
+                    </template>
+
+                    <!-- 标准差参数 -->
+                    <template v-if="needsSigma(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">标准差 <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'sigma') }})</span></label>
+                        <input type="range" v-model.number="effect.sigma" :min="getMinValue(effect.type, 'sigma')" :max="getMaxValue(effect.type, 'sigma')" :step="getStepValue(effect.type, 'sigma')" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.sigma" :min="getMinValue(effect.type, 'sigma')" :max="getMaxValue(effect.type, 'sigma')" :step="getStepValue(effect.type, 'sigma')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.sigma, getStepValue(effect.type, 'sigma')) }}</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'sigma') }}</p>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div class="two fields" style="margin-bottom: 0.5rem;">
+                    <!-- 强度参数 -->
+                    <template v-if="needsIntensity(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">强度 <span style="color: #999; font-weight: normal;">(%)</span></label>
+                        <input type="range" v-model.number="effect.intensity" :min="getMinValue(effect.type, 'intensity')" :max="getMaxValue(effect.type, 'intensity')" :step="getStepValue(effect.type, 'intensity')" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.intensity" :min="getMinValue(effect.type, 'intensity')" :max="getMaxValue(effect.type, 'intensity')" :step="getStepValue(effect.type, 'intensity')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.intensity }}%</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'intensity') }}</p>
+                      </div>
+                    </template>
+
+                    <!-- 数值参数 -->
+                    <template v-if="needsValue(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">{{ getValueLabel(effect.type) }} <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'value') }})</span></label>
+                        <input type="range" v-model.number="effect.value" :min="getMinValue(effect.type, 'value')" :max="getMaxValue(effect.type, 'value')" :step="getStepValue(effect.type, 'value')" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.value" :min="getMinValue(effect.type, 'value')" :max="getMaxValue(effect.type, 'value')" :step="getStepValue(effect.type, 'value')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.value, getStepValue(effect.type, 'value')) }}</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'value') }}</p>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div class="two fields" style="margin-bottom: 0.5rem;">
+                    <!-- 颜色参数 -->
+                    <template v-if="needsColor(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">颜色</label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="color" v-model="effect.color" style="flex: 1; font-size: 0.9em; height: 2.5em; cursor: pointer;">
+                          <input type="text" v-model="effect.color" style="flex: 1; font-size: 0.85em; padding: 0.4em;" placeholder="#FF0000">
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'color') }}</p>
+                      </div>
+                    </template>
+
+                    <!-- 尺寸参数 -->
+                    <template v-if="needsSize(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">尺寸 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                        <input type="range" v-model.number="effect.size" :min="getMinValue(effect.type, 'size')" :max="getMaxValue(effect.type, 'size')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.size" :min="getMinValue(effect.type, 'size')" :max="getMaxValue(effect.type, 'size')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.size }}px</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'size') }}</p>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div class="two fields" style="margin-bottom: 0.5rem;">
+                    <!-- 角度参数 -->
+                    <template v-if="needsAngle(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">角度 <span style="color: #999; font-weight: normal;">(度)</span></label>
+                        <input type="range" v-model.number="effect.angle" :min="getMinValue(effect.type, 'angle')" :max="getMaxValue(effect.type, 'angle')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.angle" :min="getMinValue(effect.type, 'angle')" :max="getMaxValue(effect.type, 'angle')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.angle }}°</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'angle') }}</p>
+                      </div>
+                    </template>
+
+                    <!-- 数量参数 -->
+                    <template v-if="needsAmount(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">数量 <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'amount') }})</span></label>
+                        <input type="range" v-model.number="effect.amount" :min="getMinValue(effect.type, 'amount')" :max="getMaxValue(effect.type, 'amount')" :step="getStepValue(effect.type, 'amount')" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.amount" :min="getMinValue(effect.type, 'amount')" :max="getMaxValue(effect.type, 'amount')" :step="getStepValue(effect.type, 'amount')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.amount, getStepValue(effect.type, 'amount')) }}</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'amount') }}</p>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div class="two fields" style="margin-bottom: 0.5rem;">
+                    <!-- 阈值参数 -->
+                    <template v-if="needsThreshold(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">阈值 <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'threshold') }})</span></label>
+                        <input type="range" v-model.number="effect.threshold" :min="getMinValue(effect.type, 'threshold')" :max="getMaxValue(effect.type, 'threshold')" :step="getStepValue(effect.type, 'threshold')" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.threshold" :min="getMinValue(effect.type, 'threshold')" :max="getMaxValue(effect.type, 'threshold')" :step="getStepValue(effect.type, 'threshold')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.threshold, getStepValue(effect.type, 'threshold')) }}</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'threshold') }}</p>
+                      </div>
+                    </template>
+
+                    <!-- 颜色数量参数 -->
+                    <template v-if="needsColors(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">颜色数量</label>
+                        <input type="range" v-model.number="effect.colors" :min="getMinValue(effect.type, 'colors')" :max="getMaxValue(effect.type, 'colors')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.colors" :min="getMinValue(effect.type, 'colors')" :max="getMaxValue(effect.type, 'colors')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.colors }}</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'colors') }}</p>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div class="two fields" style="margin-bottom: 0.5rem;">
+                    <!-- 级别数参数 -->
+                    <template v-if="needsLevels(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">级别数</label>
+                        <input type="range" v-model.number="effect.levels" :min="getMinValue(effect.type, 'levels')" :max="getMaxValue(effect.type, 'levels')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.levels" :min="getMinValue(effect.type, 'levels')" :max="getMaxValue(effect.type, 'levels')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.levels }}</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'levels') }}</p>
+                      </div>
+                    </template>
+
+                    <!-- 噪点类型参数 -->
+                    <template v-if="needsNoiseType(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">噪点类型</label>
+                        <select class="ui dropdown" v-model="effect.noiseType" style="font-size: 0.9em;">
+                          <option value="Uniform">均匀 (Uniform)</option>
+                          <option value="Gaussian">高斯 (Gaussian)</option>
+                          <option value="Impulse">脉冲 (Impulse)</option>
+                          <option value="Laplacian">拉普拉斯 (Laplacian)</option>
+                          <option value="Poisson">泊松 (Poisson)</option>
+                          <option value="Random">随机 (Random)</option>
+                        </select>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'noiseType') }}</p>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div class="two fields" style="margin-bottom: 0.5rem;">
+                    <!-- 振幅参数 -->
+                    <template v-if="needsAmplitude(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">振幅 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                        <input type="range" v-model.number="effect.amplitude" :min="getMinValue(effect.type, 'amplitude')" :max="getMaxValue(effect.type, 'amplitude')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.amplitude" :min="getMinValue(effect.type, 'amplitude')" :max="getMaxValue(effect.type, 'amplitude')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.amplitude }}px</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'amplitude') }}</p>
+                      </div>
+                    </template>
+
+                    <!-- 波长参数 -->
+                    <template v-if="needsWavelength(effect.type)">
+                      <div class="field form-field">
+                        <label style="font-size: 0.85em;">波长 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                        <input type="range" v-model.number="effect.wavelength" :min="getMinValue(effect.type, 'wavelength')" :max="getMaxValue(effect.type, 'wavelength')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                          <input type="number" v-model.number="effect.wavelength" :min="getMinValue(effect.type, 'wavelength')" :max="getMaxValue(effect.type, 'wavelength')" style="flex: 1; font-size: 0.9em;">
+                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.wavelength }}px</span>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'wavelength') }}</p>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="state.effectsList.length > 0" style="margin-top: 1rem;">
+                <button class="ui small primary button" :class="{ loading: state.loading.effects }" @click="handleEffects" :disabled="!state.effectsCurrentFilename || state.loading.effects" style="font-size: 0.85em; padding: 0.5em 0.75em;">
+                  <i class="magic icon"></i> 应用效果
+                </button>
+                <button class="ui small button" @click="clearEffects" style="font-size: 0.85em; padding: 0.5em 0.75em; margin-left: 0.5rem;">
+                  清空效果列表
+                </button>
+              </div>
+            </div>
+
+            <!-- 结果区域 -->
+            <div v-if="state.effectsResultImage" class="ui segment compact-segment" style="margin-top: 1rem;">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">对比预览</h3>
+              <div class="ui two column grid" style="margin: 0;">
+                <div class="column" style="padding: 0.5rem;">
+                  <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.9em; color: #666;">原始图片</strong>
+                  </div>
+                  <img v-if="state.effectsCurrentImage" :src="state.effectsCurrentImage" class="image-preview" alt="原始图片" style="max-height: 400px;">
+                </div>
+                <div class="column" style="padding: 0.5rem;">
+                  <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.9em; color: #666;">处理结果</strong>
+                  </div>
+                  <img :src="state.effectsResultImage" class="image-preview" alt="处理结果" style="max-height: 400px;">
+                  <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+                    <a :href="state.effectsResultImage" :download="state.effectsResultFilename" class="ui small primary button" style="flex: 1;">
+                      <i class="download icon"></i> 下载图片
+                    </a>
+                    <button class="ui small button" @click="useEffectsAsSource" style="flex: 1;">
+                      作为新源图片
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

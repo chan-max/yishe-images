@@ -51,6 +51,10 @@ const options = {
         description: '水印',
       },
       {
+        name: 'Effects',
+        description: '图片效果（图片裂变）',
+      },
+      {
         name: 'Adjust',
         description: '图像调整',
       },
