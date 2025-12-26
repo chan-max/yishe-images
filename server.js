@@ -194,8 +194,21 @@ app.post('/api/upload', async (req, res) => {
         const downloadResult = await downloadFromUrl(url);
         
         // 将文件从 template 移动到 uploads 目录
+        // 注意：在 Docker 中，如果 template 和 uploads 是不同的挂载点，
+        // 不能使用 rename，需要使用 copy + unlink
         const finalPath = path.join(uploadsDir, downloadResult.filename);
-        fs.renameSync(downloadResult.path, finalPath);
+        try {
+          // 尝试使用 rename（同一文件系统内更快）
+          fs.renameSync(downloadResult.path, finalPath);
+        } catch (renameError) {
+          // 如果 rename 失败（跨设备错误），使用 copy + unlink
+          if (renameError.code === 'EXDEV' || renameError.message.includes('cross-device')) {
+            fs.copyFileSync(downloadResult.path, finalPath);
+            fs.unlinkSync(downloadResult.path);
+          } else {
+            throw renameError;
+          }
+        }
         
         res.json({
           success: true,
