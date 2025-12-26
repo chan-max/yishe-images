@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ImageMagick 图像处理服务控制台</title>
   <!-- Semantic UI CSS -->
-  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/semantic-ui/2.5.0/semantic.min.css">
+  <link rel="stylesheet" href="/lib/semantic.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.5.0/semantic.min.css">
   <!-- jQuery (Semantic UI 依赖) -->
-  <script src="./lib/jquery.js""></script>
-  <!-- Vue 3 & axios CDN -->
-  <script src="/lib/vue.js""></script>
-  <script src="./lib/axios.js"></script>
+  <script src="/lib/jquery.js"></script>
+  <!-- Vue 3 & axios -->
+  <script src="/lib/vue.js"></script>
+  <script src="/lib/axios.js"></script>
   <style>
     body {
       margin: 0;
@@ -819,6 +820,169 @@
           </div>
         </div>
 
+        <!-- 图片裁剪 -->
+        <div class="view-container" :class="{ active: state.currentView === 'shape-crop' }">
+          <div class="section">
+            <h1 class="ui header">
+              <i class="cut icon"></i>
+              <div class="content">
+                图片裁剪
+                <div class="sub header">使用各种形状裁剪图片（圆形、椭圆、五角星、三角形等）</div>
+              </div>
+            </h1>
+
+            <!-- 上传区域 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">上传图片</h3>
+              
+              <!-- 统一输入框 -->
+              <div class="ui form">
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（网络 URL 或选择本地文件）</label>
+                  <div class="ui action input" style="font-size: 0.9em;">
+                    <input type="text" v-model="state.shapeCropImageUrl" placeholder="输入网络图片 URL" @keyup.enter="handleShapeCropUrlUpload" style="font-size: 0.9em;">
+                    <button class="ui primary button" :class="{ loading: state.loading.shapeCropUrlUpload }" @click="handleShapeCropUrlUpload" :disabled="!state.shapeCropImageUrl || state.loading.shapeCropUrlUpload" style="font-size: 0.85em; padding: 0.5em 0.75em;">
+                      <i class="download icon"></i> 加载
+                    </button>
+                  </div>
+                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">支持 JPG, PNG, GIF, BMP, WEBP, SVG, TIFF</p>
+                </div>
+              </div>
+              <div v-if="state.shapeCropCurrentImage" style="margin-top: 0.75rem;">
+                <img :src="state.shapeCropCurrentImage" class="image-preview" alt="当前图片">
+                <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
+                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>文件名:</strong> {{ state.shapeCropCurrentFilename }}</p>
+                  <p v-if="state.shapeCropImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;"><strong>尺寸:</strong> {{ state.shapeCropImageInfo.width }} × {{ state.shapeCropImageInfo.height }} px</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 裁剪设置 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">裁剪设置</h3>
+              
+              <div class="ui form compact-form">
+                <!-- 形状选择 -->
+                <div class="field form-field">
+                  <label style="font-size: 0.85em;">裁剪形状</label>
+                  <div class="ui grid" style="margin: 0.5rem 0;">
+                    <div class="four column row" style="padding: 0;">
+                      <div class="column" style="padding: 0.25rem;">
+                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'circle' }" @click="state.shapeCropOptions.shape = 'circle'" style="font-size: 0.85em; padding: 0.5em;">
+                          <i class="circle icon"></i> 圆形
+                        </div>
+                      </div>
+                      <div class="column" style="padding: 0.25rem;">
+                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'ellipse' }" @click="state.shapeCropOptions.shape = 'ellipse'" style="font-size: 0.85em; padding: 0.5em;">
+                          <i class="ellipsis horizontal icon"></i> 椭圆
+                        </div>
+                      </div>
+                      <div class="column" style="padding: 0.25rem;">
+                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'star' }" @click="state.shapeCropOptions.shape = 'star'" style="font-size: 0.85em; padding: 0.5em;">
+                          <i class="star icon"></i> 五角星
+                        </div>
+                      </div>
+                      <div class="column" style="padding: 0.25rem;">
+                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'triangle' }" @click="state.shapeCropOptions.shape = 'triangle'" style="font-size: 0.85em; padding: 0.5em;">
+                          <i class="triangle icon"></i> 三角形
+                        </div>
+                      </div>
+                    </div>
+                    <div class="four column row" style="padding: 0;">
+                      <div class="column" style="padding: 0.25rem;">
+                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'diamond' }" @click="state.shapeCropOptions.shape = 'diamond'" style="font-size: 0.85em; padding: 0.5em;">
+                          <i class="gem icon"></i> 菱形
+                        </div>
+                      </div>
+                      <div class="column" style="padding: 0.25rem;">
+                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'heart' }" @click="state.shapeCropOptions.shape = 'heart'" style="font-size: 0.85em; padding: 0.5em;">
+                          <i class="heart icon"></i> 心形
+                        </div>
+                      </div>
+                      <div class="column" style="padding: 0.25rem;">
+                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'hexagon' }" @click="state.shapeCropOptions.shape = 'hexagon'" style="font-size: 0.85em; padding: 0.5em;">
+                          <i class="hexagon icon"></i> 六边形
+                        </div>
+                      </div>
+                      <div class="column" style="padding: 0.25rem;">
+                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'octagon' }" @click="state.shapeCropOptions.shape = 'octagon'" style="font-size: 0.85em; padding: 0.5em;">
+                          <i class="stop icon"></i> 八边形
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 尺寸设置 -->
+                <div class="two fields">
+                  <div class="field form-field">
+                    <label style="font-size: 0.85em;">宽度 (px)</label>
+                    <input type="number" v-model.number="state.shapeCropOptions.width" placeholder="200" min="10" style="font-size: 0.9em;">
+                  </div>
+                  <div class="field form-field">
+                    <label style="font-size: 0.85em;">高度 (px)</label>
+                    <input type="number" v-model.number="state.shapeCropOptions.height" placeholder="200" min="10" style="font-size: 0.9em;">
+                    <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">圆形时高度等于宽度</p>
+                  </div>
+                </div>
+
+                <!-- 位置设置 -->
+                <div class="two fields">
+                  <div class="field form-field">
+                    <label style="font-size: 0.85em;">中心 X 坐标 (px，留空则居中)</label>
+                    <input type="number" v-model.number="state.shapeCropOptions.x" placeholder="居中" min="0" style="font-size: 0.9em;">
+                  </div>
+                  <div class="field form-field">
+                    <label style="font-size: 0.85em;">中心 Y 坐标 (px，留空则居中)</label>
+                    <input type="number" v-model.number="state.shapeCropOptions.y" placeholder="居中" min="0" style="font-size: 0.9em;">
+                  </div>
+                </div>
+
+                <!-- 背景颜色 -->
+                <div class="field form-field">
+                  <label style="font-size: 0.85em;">背景颜色</label>
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="color" v-model="state.shapeCropOptions.backgroundColor" style="font-size: 0.9em; height: 2.5em; width: 80px;">
+                    <input type="text" v-model="state.shapeCropOptions.backgroundColor" placeholder="transparent" style="flex: 1; font-size: 0.85em;">
+                  </div>
+                  <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">支持颜色名称（如 transparent）或十六进制（如 #FFFFFF）</p>
+                </div>
+
+                <button class="ui small primary button" :class="{ loading: state.loading.shapeCrop }" @click="handleShapeCrop" :disabled="!state.shapeCropCurrentFilename || state.loading.shapeCrop" style="font-size: 0.85em; padding: 0.5em 0.75em;">
+                  <i class="cut icon"></i> 执行裁剪
+                </button>
+              </div>
+            </div>
+
+            <!-- 结果区域 -->
+            <div v-if="state.shapeCropResultImage" class="ui segment compact-segment" style="margin-top: 1rem;">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">对比预览</h3>
+              <div class="ui two column grid" style="margin: 0;">
+                <div class="column" style="padding: 0.5rem;">
+                  <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.9em; color: #666;">原始图片</strong>
+                  </div>
+                  <img v-if="state.shapeCropCurrentImage" :src="state.shapeCropCurrentImage" class="image-preview" alt="原始图片" style="max-height: 400px;">
+                </div>
+                <div class="column" style="padding: 0.5rem;">
+                  <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.9em; color: #666;">裁剪结果 ({{ state.shapeCropOptions.shape }})</strong>
+                  </div>
+                  <img :src="state.shapeCropResultImage" class="image-preview" alt="裁剪结果" style="max-height: 400px;">
+                  <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+                    <a :href="state.shapeCropResultImage" :download="state.shapeCropResultFilename" class="ui small primary button" style="flex: 1;">
+                      <i class="download icon"></i> 下载图片
+                    </a>
+                    <button class="ui small button" @click="useShapeCropAsSource" style="flex: 1;">
+                      作为新源图片
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 水印 -->
         <div class="view-container" :class="{ active: state.currentView === 'watermark' }">
           <div class="section">
@@ -1487,7 +1651,7 @@
   </div>
 
   <!-- Semantic UI JS -->
-  <script src="https://cdn.bootcdn.net/ajax/libs/semantic-ui/2.5.0/semantic.min.js"></script>
+  <script src="/lib/semantic.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

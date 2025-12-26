@@ -34,9 +34,15 @@ function initApp() {
         analyzeImageUrl: '',
         watermarkImageUrl: '',
         effectsImageUrl: '',
+        shapeCropImageUrl: '',
         currentImage: null,
         currentFilename: null,
         imageInfo: null,
+        shapeCropCurrentImage: null,
+        shapeCropCurrentFilename: null,
+        shapeCropImageInfo: null,
+        shapeCropResultImage: null,
+        shapeCropResultFilename: null,
         watermarkCurrentImage: null,
         watermarkCurrentFilename: null,
         watermarkImageInfo: null,
@@ -114,7 +120,17 @@ function initApp() {
           watermarkUrlUpload: false,
           watermark: false,
           effectsUrlUpload: false,
-          effects: false
+          effects: false,
+          shapeCropUrlUpload: false,
+          shapeCrop: false
+        },
+        shapeCropOptions: {
+          shape: 'circle',
+          x: null,
+          y: null,
+          width: 200,
+          height: 200,
+          backgroundColor: 'transparent'
         }
       });
 
@@ -124,6 +140,7 @@ function initApp() {
         { id: 'config', name: '服务配置', icon: 'cog' },
         { id: 'analyze', name: '图片分析', icon: 'search' },
         { id: 'process', name: '图像处理', icon: 'wrench' },
+        { id: 'shape-crop', name: '图片裁剪', icon: 'cut' },
         { id: 'watermark', name: '水印', icon: 'tint' },
         { id: 'effects', name: '图片裂变', icon: 'magic' }
       ];
@@ -698,6 +715,121 @@ function initApp() {
           state.resultFilename = null;
           addDebugLog('已设置为新的源图片', 'info');
           loadImageInfo();
+        }
+      }
+
+      // ========== 图片形状裁剪功能 ==========
+      
+      // 处理形状裁剪 URL 上传
+      async function handleShapeCropUrlUpload() {
+        if (!state.shapeCropImageUrl || !state.shapeCropImageUrl.trim()) {
+          addDebugLog('请输入有效的图片 URL', 'error');
+          return;
+        }
+
+        const url = state.shapeCropImageUrl.trim();
+        state.loading.shapeCropUrlUpload = true;
+        addDebugLog(`开始从 URL 下载: ${url}`, 'info');
+
+        try {
+          const { data } = await axios.post(`${BASE_URL}/api/upload`, {
+            url: url
+          }, {
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          if (data.success) {
+            state.shapeCropCurrentFilename = data.filename;
+            state.shapeCropCurrentImage = `${BASE_URL}${data.path}`;
+            addDebugLog(`下载成功: ${data.originalName}`, 'success');
+            
+            state.shapeCropImageUrl = '';
+            await loadShapeCropImageInfo();
+          } else {
+            addDebugLog(`下载失败: ${data.error}`, 'error');
+          }
+        } catch (e) {
+          addDebugLog(`下载错误: ${e.response?.data?.error || e.message}`, 'error');
+        } finally {
+          state.loading.shapeCropUrlUpload = false;
+        }
+      }
+
+      async function loadShapeCropImageInfo() {
+        if (!state.shapeCropCurrentFilename) return;
+
+        try {
+          const { data } = await axios.post(`${BASE_URL}/api/info`, {
+            filename: state.shapeCropCurrentFilename
+          });
+
+          if (data.success) {
+            state.shapeCropImageInfo = data.info;
+            // 自动设置默认尺寸为图片尺寸的一半
+            if (!state.shapeCropOptions.x && !state.shapeCropOptions.y) {
+              state.shapeCropOptions.width = Math.floor(data.info.width / 2);
+              state.shapeCropOptions.height = Math.floor(data.info.height / 2);
+            }
+            addDebugLog(`图片信息: ${data.info.width} × ${data.info.height} px`, 'info');
+          }
+        } catch (e) {
+          addDebugLog(`获取图片信息失败: ${e.response?.data?.error || e.message}`, 'error');
+        }
+      }
+
+      // 处理形状裁剪
+      async function handleShapeCrop() {
+        if (!state.shapeCropCurrentFilename) {
+          addDebugLog('请先上传图片', 'error');
+          return;
+        }
+
+        const { shape, x, y, width, height, backgroundColor } = state.shapeCropOptions;
+        if (!width || !height) {
+          addDebugLog('请输入宽度和高度', 'error');
+          return;
+        }
+
+        state.loading.shapeCrop = true;
+        addDebugLog(`开始形状裁剪: ${shape}`, 'info');
+
+        try {
+          const { data } = await axios.post(`${BASE_URL}/api/shape-crop`, {
+            filename: state.shapeCropCurrentFilename,
+            shape: shape,
+            x: x,
+            y: y,
+            width: parseInt(width),
+            height: parseInt(height),
+            backgroundColor: backgroundColor
+          });
+
+          if (data.success) {
+            state.shapeCropResultImage = `${BASE_URL}${data.path}`;
+            state.shapeCropResultFilename = data.outputFile;
+            addDebugLog(`形状裁剪成功: ${shape}`, 'success');
+            if (data.command) {
+              addDebugLog(`执行命令: ${data.command}`, 'info');
+            }
+          } else {
+            addDebugLog(`形状裁剪失败: ${data.error}`, 'error');
+          }
+        } catch (e) {
+          addDebugLog(`形状裁剪错误: ${e.response?.data?.error || e.message}`, 'error');
+        } finally {
+          state.loading.shapeCrop = false;
+        }
+      }
+
+      // 使用形状裁剪结果作为新源图片
+      function useShapeCropAsSource() {
+        if (state.shapeCropResultImage && state.shapeCropResultFilename) {
+          state.shapeCropCurrentImage = state.shapeCropResultImage;
+          state.shapeCropCurrentFilename = state.shapeCropResultFilename;
+          state.shapeCropResultImage = null;
+          state.shapeCropResultFilename = null;
+          addDebugLog('已设置为新的源图片', 'info');
+          loadShapeCropImageInfo();
         }
       }
 
@@ -1365,7 +1497,11 @@ function initApp() {
         getValueLabel,
         getParamDescription,
         handleEffects,
-        useEffectsAsSource
+        useEffectsAsSource,
+        handleShapeCropUrlUpload,
+        loadShapeCropImageInfo,
+        handleShapeCrop,
+        useShapeCropAsSource
       };
     }
   }).mount('#app');

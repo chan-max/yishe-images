@@ -451,6 +451,97 @@ app.post('/api/crop', async (req, res) => {
 
 /**
  * @swagger
+ * /api/shape-crop:
+ *   post:
+ *     summary: 形状裁剪（圆形、椭圆、五角星、三角形等）
+ *     tags: [ShapeCrop]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - filename
+ *               - shape
+ *             properties:
+ *               filename:
+ *                 type: string
+ *                 description: 已上传的文件名
+ *               shape:
+ *                 type: string
+ *                 enum: [circle, ellipse, star, triangle, diamond, heart, hexagon, octagon]
+ *                 description: 裁剪形状
+ *                 example: "circle"
+ *               x:
+ *                 type: integer
+ *                 description: 中心 X 坐标（可选，默认居中）
+ *               y:
+ *                 type: integer
+ *                 description: 中心 Y 坐标（可选，默认居中）
+ *               width:
+ *                 type: integer
+ *                 description: 宽度（像素）
+ *                 default: 200
+ *               height:
+ *                 type: integer
+ *                 description: 高度（像素，圆形时等于宽度）
+ *                 default: 200
+ *               backgroundColor:
+ *                 type: string
+ *                 description: 背景颜色
+ *                 default: "transparent"
+ *     responses:
+ *       200:
+ *         description: 处理成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ProcessResponse'
+ *       400:
+ *         description: 参数错误
+ *       500:
+ *         description: 处理失败
+ */
+app.post('/api/shape-crop', async (req, res) => {
+  try {
+    const { filename, shape, x, y, width, height, backgroundColor } = req.body;
+    if (!filename || !shape) {
+      return res.status(400).json({ error: '缺少必要参数' });
+    }
+    
+    const inputPath = path.join(uploadsDir, filename);
+    if (!fs.existsSync(inputPath)) {
+      return res.status(404).json({ error: '文件不存在' });
+    }
+    
+    // 确保输出文件名是 PNG 格式（支持透明）
+    const baseName = path.parse(filename).name;
+    const outputFilename = `shape_cropped_${shape}_${Date.now()}_${baseName}.png`;
+    const outputPath = path.join(outputDir, outputFilename);
+    
+    const command = await imagemagick.shapeCrop(inputPath, outputPath, {
+      shape: shape,
+      x: x !== undefined ? parseInt(x) : null,
+      y: y !== undefined ? parseInt(y) : null,
+      width: parseInt(width) || 200,
+      height: parseInt(height) || 200,
+      backgroundColor: backgroundColor || 'transparent'
+    });
+    
+    res.json({
+      success: true,
+      outputFile: outputFilename,
+      path: `/output/${outputFilename}`,
+      command: command
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
  * /api/rotate:
  *   post:
  *     summary: 旋转图片
