@@ -306,10 +306,11 @@ app.post('/api/info', async (req, res) => {
 
 /**
  * @swagger
- * /api/resize:
+ * /api/process:
  *   post:
- *     summary: 调整图片大小
- *     tags: [Resize]
+ *     summary: 链式图片处理（统一接口）
+ *     tags: [Process]
+ *     description: 支持按顺序执行多个图片处理操作，如调整大小、裁剪、旋转、水印、效果等
  *     requestBody:
  *       required: true
  *       content:
@@ -318,549 +319,14 @@ app.post('/api/info', async (req, res) => {
  *             type: object
  *             required:
  *               - filename
- *               - width
- *               - height
+ *               - operations
  *             properties:
  *               filename:
  *                 type: string
  *                 description: 已上传的文件名
- *               width:
- *                 type: integer
- *                 description: 目标宽度（像素）
- *                 example: 800
- *               height:
- *                 type: integer
- *                 description: 目标高度（像素）
- *                 example: 600
- *               maintainAspectRatio:
- *                 type: boolean
- *                 description: 是否保持宽高比
- *                 default: true
- *               quality:
- *                 type: integer
- *                 description: 图片质量（1-100）
- *                 default: 90
- *                 minimum: 1
- *                 maximum: 100
- *     responses:
- *       200:
- *         description: 处理成功
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ProcessResponse'
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 处理失败
- */
-app.post('/api/resize', async (req, res) => {
-  try {
-    const { filename, width, height, quality, maintainAspectRatio } = req.body;
-    if (!filename || !width || !height) {
-      return res.status(400).json({ error: '缺少必要参数' });
-    }
-    
-    const inputPath = path.join(uploadsDir, filename);
-    const outputFilename = `resized_${Date.now()}_${filename}`;
-    const outputPath = path.join(outputDir, outputFilename);
-    
-    const command = await imagemagick.resize(inputPath, outputPath, {
-      width: parseInt(width),
-      height: parseInt(height),
-      quality: quality || 90,
-      maintainAspectRatio: maintainAspectRatio !== false
-    });
-    
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: `/output/${outputFilename}`,
-      command: command
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/crop:
- *   post:
- *     summary: 裁剪图片
- *     tags: [Crop]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - filename
- *               - x
- *               - y
- *               - width
- *               - height
- *             properties:
- *               filename:
- *                 type: string
- *                 description: 已上传的文件名
- *               x:
- *                 type: integer
- *                 description: 裁剪起始 X 坐标
- *                 example: 100
- *               y:
- *                 type: integer
- *                 description: 裁剪起始 Y 坐标
- *                 example: 100
- *               width:
- *                 type: integer
- *                 description: 裁剪宽度（像素）
- *                 example: 500
- *               height:
- *                 type: integer
- *                 description: 裁剪高度（像素）
- *                 example: 500
- *     responses:
- *       200:
- *         description: 处理成功
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ProcessResponse'
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 处理失败
- */
-app.post('/api/crop', async (req, res) => {
-  try {
-    const { filename, x, y, width, height } = req.body;
-    if (!filename || x === undefined || y === undefined || !width || !height) {
-      return res.status(400).json({ error: '缺少必要参数' });
-    }
-    
-    const inputPath = path.join(uploadsDir, filename);
-    const outputFilename = `cropped_${Date.now()}_${filename}`;
-    const outputPath = path.join(outputDir, outputFilename);
-    
-    const command = await imagemagick.crop(inputPath, outputPath, {
-      x: parseInt(x),
-      y: parseInt(y),
-      width: parseInt(width),
-      height: parseInt(height)
-    });
-    
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: `/output/${outputFilename}`,
-      command: command
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/shape-crop:
- *   post:
- *     summary: 形状裁剪（圆形、椭圆、五角星、三角形等）
- *     tags: [ShapeCrop]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - filename
- *               - shape
- *             properties:
- *               filename:
- *                 type: string
- *                 description: 已上传的文件名
- *               shape:
- *                 type: string
- *                 enum: [circle, ellipse, star, triangle, diamond, heart, hexagon, octagon]
- *                 description: 裁剪形状
- *                 example: "circle"
- *               x:
- *                 type: integer
- *                 description: 中心 X 坐标（可选，默认居中）
- *               y:
- *                 type: integer
- *                 description: 中心 Y 坐标（可选，默认居中）
- *               width:
- *                 type: integer
- *                 description: 宽度（像素）
- *                 default: 200
- *               height:
- *                 type: integer
- *                 description: 高度（像素，圆形时等于宽度）
- *                 default: 200
- *               backgroundColor:
- *                 type: string
- *                 description: 背景颜色
- *                 default: "transparent"
- *     responses:
- *       200:
- *         description: 处理成功
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ProcessResponse'
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 处理失败
- */
-app.post('/api/shape-crop', async (req, res) => {
-  try {
-    const { filename, shape, x, y, width, height, backgroundColor } = req.body;
-    if (!filename || !shape) {
-      return res.status(400).json({ error: '缺少必要参数' });
-    }
-    
-    const inputPath = path.join(uploadsDir, filename);
-    if (!fs.existsSync(inputPath)) {
-      return res.status(404).json({ error: '文件不存在' });
-    }
-    
-    // 确保输出文件名是 PNG 格式（支持透明）
-    const baseName = path.parse(filename).name;
-    const outputFilename = `shape_cropped_${shape}_${Date.now()}_${baseName}.png`;
-    const outputPath = path.join(outputDir, outputFilename);
-    
-    const command = await imagemagick.shapeCrop(inputPath, outputPath, {
-      shape: shape,
-      x: x !== undefined ? parseInt(x) : null,
-      y: y !== undefined ? parseInt(y) : null,
-      width: parseInt(width) || 200,
-      height: parseInt(height) || 200,
-      backgroundColor: backgroundColor || 'transparent'
-    });
-    
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: `/output/${outputFilename}`,
-      command: command
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/rotate:
- *   post:
- *     summary: 旋转图片
- *     tags: [Rotate]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - filename
- *               - degrees
- *             properties:
- *               filename:
- *                 type: string
- *                 description: 已上传的文件名
- *               degrees:
- *                 type: number
- *                 description: 旋转角度（度，-360 到 360）
- *                 example: 90
- *               backgroundColor:
- *                 type: string
- *                 description: 背景颜色（支持颜色名称或十六进制）
- *                 default: "transparent"
- *                 example: "#000000"
- *     responses:
- *       200:
- *         description: 处理成功
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ProcessResponse'
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 处理失败
- */
-app.post('/api/rotate', async (req, res) => {
-  try {
-    const { filename, degrees, backgroundColor } = req.body;
-    if (!filename || degrees === undefined) {
-      return res.status(400).json({ error: '缺少必要参数' });
-    }
-    
-    const inputPath = path.join(uploadsDir, filename);
-    const outputFilename = `rotated_${Date.now()}_${filename}`;
-    const outputPath = path.join(outputDir, outputFilename);
-    
-    const command = await imagemagick.rotate(inputPath, outputPath, {
-      degrees: parseFloat(degrees),
-      backgroundColor: backgroundColor || 'transparent'
-    });
-    
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: `/output/${outputFilename}`,
-      command: command
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/convert:
- *   post:
- *     summary: 转换图片格式
- *     tags: [Convert]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - filename
- *               - format
- *             properties:
- *               filename:
- *                 type: string
- *                 description: 已上传的文件名
- *               format:
- *                 type: string
- *                 description: 目标格式
- *                 enum: [jpg, png, gif, webp, bmp, tiff]
- *                 example: "png"
- *               quality:
- *                 type: integer
- *                 description: 图片质量（1-100）
- *                 default: 90
- *                 minimum: 1
- *                 maximum: 100
- *     responses:
- *       200:
- *         description: 转换成功
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ProcessResponse'
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 转换失败
- */
-app.post('/api/convert', async (req, res) => {
-  try {
-    const { filename, format, quality } = req.body;
-    if (!filename || !format) {
-      return res.status(400).json({ error: '缺少必要参数' });
-    }
-    
-    const inputPath = path.join(uploadsDir, filename);
-    const baseName = path.parse(filename).name;
-    const outputFilename = `${baseName}.${format}`;
-    const outputPath = path.join(outputDir, outputFilename);
-    
-    const command = await imagemagick.convert(inputPath, outputPath, {
-      format: format.toLowerCase(),
-      quality: quality || 90
-    });
-    
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: `/output/${outputFilename}`,
-      command: command
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/watermark:
- *   post:
- *     summary: 添加文字水印
- *     tags: [Watermark]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - filename
- *               - watermarkText
- *             properties:
- *               filename:
- *                 type: string
- *                 description: 已上传的文件名
- *               watermarkText:
- *                 type: string
- *                 description: 水印文字
- *                 example: "水印文字"
- *               position:
- *                 type: string
- *                 description: 水印位置
- *                 enum: [top-left, top-center, top-right, center-left, center, center-right, bottom-left, bottom-center, bottom-right]
- *                 default: "bottom-right"
- *               opacity:
- *                 type: number
- *                 description: 透明度（0-1）
- *                 default: 0.5
- *                 minimum: 0
- *                 maximum: 1
- *               fontSize:
- *                 type: integer
- *                 description: 字体大小
- *                 default: 24
- *               color:
- *                 type: string
- *                 description: 文字颜色
- *                 default: "white"
- *                 example: "#ffffff"
- *     responses:
- *       200:
- *         description: 处理成功
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ProcessResponse'
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 处理失败
- */
-app.post('/api/watermark', async (req, res) => {
-  try {
-    const {
-      filename,
-      type = 'text', // 'text' 或 'image'
-      // 文字水印
-      text,
-      fontSize = 24,
-      fontFamily = 'Arial',
-      color = 'white',
-      strokeColor = null,
-      strokeWidth = 0,
-      // 图片水印
-      watermarkImageFilename = null,
-      watermarkScale = 1.0,
-      // 通用选项
-      position = 'bottom-right',
-      x = null,
-      y = null,
-      marginX = 10,
-      marginY = 10,
-      opacity = 0.5,
-      angle = 0,
-      repeat = false,
-      tileSize = null
-    } = req.body;
-    
-    if (!filename) {
-      return res.status(400).json({ error: '缺少文件名' });
-    }
-    
-    if (type === 'text' && !text) {
-      return res.status(400).json({ error: '文字水印需要提供文字内容' });
-    }
-    
-    if (type === 'image' && !watermarkImageFilename) {
-      return res.status(400).json({ error: '图片水印需要提供水印图片文件名' });
-    }
-    
-    const inputPath = path.join(uploadsDir, filename);
-    const outputFilename = `watermarked_${Date.now()}_${filename}`;
-    const outputPath = path.join(outputDir, outputFilename);
-    
-    const options = {
-      type,
-      position,
-      opacity: parseFloat(opacity) || 0.5,
-      marginX: parseInt(marginX) || 10,
-      marginY: parseInt(marginY) || 10,
-      angle: parseFloat(angle) || 0,
-      repeat: repeat === true || repeat === 'true'
-    };
-    
-    if (x !== null && y !== null) {
-      options.x = parseInt(x);
-      options.y = parseInt(y);
-    }
-    
-    if (type === 'text') {
-      options.text = text;
-      options.fontSize = parseInt(fontSize) || 24;
-      options.fontFamily = fontFamily || 'Arial';
-      options.color = color || 'white';
-      if (strokeColor && strokeWidth > 0) {
-        options.strokeColor = strokeColor;
-        options.strokeWidth = parseInt(strokeWidth) || 0;
-      }
-      if (tileSize) {
-        options.tileSize = tileSize;
-      }
-    } else if (type === 'image') {
-      const watermarkImagePath = path.join(uploadsDir, watermarkImageFilename);
-      if (!fs.existsSync(watermarkImagePath)) {
-        return res.status(400).json({ error: '水印图片文件不存在' });
-      }
-      options.watermarkImage = watermarkImagePath;
-      options.watermarkScale = parseFloat(watermarkScale) || 1.0;
-    }
-    
-    const command = await imagemagick.watermark(inputPath, outputPath, options);
-    
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: `/output/${outputFilename}`,
-      command: command
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/effects:
- *   post:
- *     summary: 应用图片效果（图片裂变功能）
- *     tags: [Effects]
- *     description: 支持多种图片效果，可以同时应用多个效果。效果类型包括：黑白化、颜色调整、滤镜、马赛克、模糊、锐化、浮雕、边缘检测、油画、素描、负片、怀旧、噪点、像素化等
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - filename
- *               - effects
- *             properties:
- *               filename:
- *                 type: string
- *                 description: 已上传的文件名
- *                 example: "1234567890-123456789.jpg"
- *               effects:
+ *               operations:
  *                 type: array
- *                 description: 要应用的效果列表，按顺序执行
+ *                 description: 操作数组，按顺序执行
  *                 items:
  *                   type: object
  *                   required:
@@ -868,56 +334,11 @@ app.post('/api/watermark', async (req, res) => {
  *                   properties:
  *                     type:
  *                       type: string
- *                       description: 效果类型
- *                       enum: [grayscale, negate, sepia, blur, gaussian-blur, motion-blur, sharpen, unsharp, charcoal, oil-painting, sketch, emboss, edge, posterize, pixelate, mosaic, brightness, contrast, saturation, hue, colorize, tint, noise, despeckle, texture, vignette, solarize, swirl, wave, implode, explode, spread, normalize, equalize, gamma, threshold, quantize]
- *                     radius:
- *                       type: number
- *                       description: 半径参数（用于模糊、锐化等效果）
- *                     sigma:
- *                       type: number
- *                       description: 标准差参数（用于模糊、锐化等效果）
- *                     intensity:
- *                       type: number
- *                       description: 强度参数（用于各种效果）
- *                     value:
- *                       type: number
- *                       description: 数值参数（用于亮度、对比度等调整）
- *                     color:
- *                       type: string
- *                       description: 颜色值（用于着色、色调等效果）
- *                     size:
- *                       type: number
- *                       description: 尺寸参数（用于像素化、马赛克等效果）
- *                     angle:
- *                       type: number
- *                       description: 角度参数（用于运动模糊、漩涡等效果）
- *                     amplitude:
- *                       type: number
- *                       description: 振幅参数（用于波浪效果）
- *                     wavelength:
- *                       type: number
- *                       description: 波长参数（用于波浪效果）
- *                     amount:
- *                       type: number
- *                       description: 数量参数（用于各种效果）
- *                     threshold:
- *                       type: number
- *                       description: 阈值参数（用于阈值化等效果）
- *                     colors:
- *                       type: integer
- *                       description: 颜色数量（用于量化效果）
- *                     levels:
- *                       type: integer
- *                       description: 级别数（用于海报化效果）
- *                     noiseType:
- *                       type: string
- *                       description: 噪点类型（Uniform, Gaussian, Impulse, Laplacian, Poisson, Random）
- *                     textureType:
- *                       type: string
- *                       description: 纹理类型
- *                     degrees:
- *                       type: number
- *                       description: 角度（度）
+ *                       enum: [resize, crop, shapeCrop, rotate, convert, watermark, adjust, filter, effects]
+ *                       description: 操作类型
+ *                     params:
+ *                       type: object
+ *                       description: 操作参数（根据操作类型不同而不同）
  *     responses:
  *       200:
  *         description: 处理成功
@@ -930,25 +351,27 @@ app.post('/api/watermark', async (req, res) => {
  *                   type: boolean
  *                 outputFile:
  *                   type: string
- *                   description: 输出文件名
  *                 path:
  *                   type: string
- *                   description: 输出文件路径
+ *                 commands:
+ *                   type: array
+ *                   items:
+ *                     type: string
  *       400:
  *         description: 参数错误
  *       500:
  *         description: 处理失败
  */
-app.post('/api/effects', async (req, res) => {
+app.post('/api/process', async (req, res) => {
   try {
-    const { filename, effects } = req.body;
+    const { filename, operations } = req.body;
     
     if (!filename) {
-      return res.status(400).json({ error: '缺少文件名' });
+      return res.status(400).json({ error: '缺少必要参数: filename' });
     }
     
-    if (!Array.isArray(effects) || effects.length === 0) {
-      return res.status(400).json({ error: '至少需要指定一个效果' });
+    if (!Array.isArray(operations) || operations.length === 0) {
+      return res.status(400).json({ error: 'operations 必须是非空数组' });
     }
     
     const inputPath = path.join(uploadsDir, filename);
@@ -956,248 +379,183 @@ app.post('/api/effects', async (req, res) => {
       return res.status(404).json({ error: '文件不存在' });
     }
     
-    const outputFilename = `effects_${Date.now()}_${filename}`;
-    const outputPath = path.join(outputDir, outputFilename);
+    // 链式处理：每个操作的输出作为下一个操作的输入
+    let currentInputPath = inputPath;
+    const commands = [];
+    const tempFiles = [];
     
-    const command = await imagemagick.applyEffects(inputPath, outputPath, effects);
-    
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: `/output/${outputFilename}`,
-      command: command
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/adjust:
- *   post:
- *     summary: 调整图片亮度、对比度、饱和度
- *     tags: [Adjust]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - filename
- *             properties:
- *               filename:
- *                 type: string
- *                 description: 已上传的文件名
- *               brightness:
- *                 type: integer
- *                 description: 亮度调整（-100 到 100）
- *                 default: 0
- *                 minimum: -100
- *                 maximum: 100
- *               contrast:
- *                 type: integer
- *                 description: 对比度调整（-100 到 100）
- *                 default: 0
- *                 minimum: -100
- *                 maximum: 100
- *               saturation:
- *                 type: integer
- *                 description: 饱和度调整（-100 到 100）
- *                 default: 0
- *                 minimum: -100
- *                 maximum: 100
- *     responses:
- *       200:
- *         description: 处理成功
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ProcessResponse'
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 处理失败
- */
-app.post('/api/adjust', async (req, res) => {
-  try {
-    const { filename, brightness, contrast, saturation } = req.body;
-    if (!filename) {
-      return res.status(400).json({ error: '缺少必要参数' });
-    }
-    
-    const inputPath = path.join(uploadsDir, filename);
-    const outputFilename = `adjusted_${Date.now()}_${filename}`;
-    const outputPath = path.join(outputDir, outputFilename);
-    
-    const command = await imagemagick.adjust(inputPath, outputPath, {
-      brightness: brightness || 0,
-      contrast: contrast || 0,
-      saturation: saturation || 0
-    });
-    
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: `/output/${outputFilename}`,
-      command: command
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/filter:
- *   post:
- *     summary: 应用滤镜效果
- *     tags: [Filter]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - filename
- *               - filterType
- *             properties:
- *               filename:
- *                 type: string
- *                 description: 已上传的文件名
- *               filterType:
- *                 type: string
- *                 description: 滤镜类型
- *                 enum: [blur, sharpen, emboss, edge, charcoal, oil-painting, sepia, grayscale, negate]
- *                 example: "blur"
- *               intensity:
- *                 type: number
- *                 description: 滤镜强度（0-10）
- *                 default: 1
- *                 minimum: 0
- *                 maximum: 10
- *     responses:
- *       200:
- *         description: 处理成功
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ProcessResponse'
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 处理失败
- */
-app.post('/api/filter', async (req, res) => {
-  try {
-    const { filename, filterType, intensity } = req.body;
-    if (!filename || !filterType) {
-      return res.status(400).json({ error: '缺少必要参数' });
-    }
-    
-    const inputPath = path.join(uploadsDir, filename);
-    const outputFilename = `filtered_${Date.now()}_${filename}`;
-    const outputPath = path.join(outputDir, outputFilename);
-    
-    const command = await imagemagick.applyFilter(inputPath, outputPath, {
-      filterType: filterType,
-      intensity: intensity || 1
-    });
-    
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: `/output/${outputFilename}`,
-      command: command
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/batch:
- *   post:
- *     summary: 批量处理图片
- *     tags: [Batch]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - filenames
- *               - operations
- *             properties:
- *               filenames:
- *                 type: array
- *                 description: 要处理的文件名数组
- *                 items:
- *                   type: string
- *                 example: ["file1.jpg", "file2.png"]
- *               operations:
- *                 type: array
- *                 description: 操作列表
- *                 items:
- *                   type: object
- *                   properties:
- *                     type:
- *                       type: string
- *                       enum: [resize, crop, rotate, adjust, filter]
- *     responses:
- *       200:
- *         description: 处理成功
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 results:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       original:
- *                         type: string
- *                       output:
- *                         type: string
- *                       path:
- *                         type: string
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 处理失败
- */
-app.post('/api/batch', async (req, res) => {
-  try {
-    const { filenames, operations } = req.body;
-    if (!filenames || !Array.isArray(filenames) || !operations) {
-      return res.status(400).json({ error: '缺少必要参数' });
-    }
-    
-    const results = [];
-    for (const filename of filenames) {
-      const inputPath = path.join(uploadsDir, filename);
-      const outputFilename = `batch_${Date.now()}_${filename}`;
-      const outputPath = path.join(outputDir, outputFilename);
+    try {
+      for (let i = 0; i < operations.length; i++) {
+        const operation = operations[i];
+        const { type, params = {} } = operation;
+        
+        if (!type) {
+          throw new Error(`操作 ${i + 1} 缺少 type 字段`);
+        }
+        
+        // 生成临时输出文件路径（最后一个操作使用最终输出路径）
+        let outputPath;
+        if (i === operations.length - 1) {
+          // 最后一个操作，使用最终输出文件名
+          const baseName = path.parse(filename).name;
+          const ext = params.format ? `.${params.format}` : path.extname(filename);
+          const outputFilename = `processed_${Date.now()}_${baseName}${ext}`;
+          outputPath = path.join(outputDir, outputFilename);
+        } else {
+          // 中间操作，使用临时文件
+          const tempFilename = `temp_${Date.now()}_${i}.${path.extname(currentInputPath).slice(1) || 'jpg'}`;
+          outputPath = path.join(outputDir, tempFilename);
+          tempFiles.push(outputPath);
+        }
+        
+        let command;
+        
+        // 根据操作类型调用相应的处理函数
+        switch (type) {
+          case 'resize':
+            command = await imagemagick.resize(currentInputPath, outputPath, {
+              width: parseInt(params.width),
+              height: parseInt(params.height),
+              quality: params.quality || 90,
+              maintainAspectRatio: params.maintainAspectRatio !== false
+            });
+            break;
+            
+          case 'crop':
+            command = await imagemagick.crop(currentInputPath, outputPath, {
+              x: parseInt(params.x) || 0,
+              y: parseInt(params.y) || 0,
+              width: parseInt(params.width),
+              height: parseInt(params.height)
+            });
+            break;
+            
+          case 'shapeCrop':
+            const baseName = path.parse(currentInputPath).name;
+            const shapeOutputPath = outputPath.replace(/\.[^.]+$/, '.png');
+            command = await imagemagick.shapeCrop(currentInputPath, shapeOutputPath, {
+              shape: params.shape,
+              x: params.x !== undefined ? parseInt(params.x) : null,
+              y: params.y !== undefined ? parseInt(params.y) : null,
+              width: parseInt(params.width) || 200,
+              height: parseInt(params.height) || 200,
+              backgroundColor: params.backgroundColor || 'transparent'
+            });
+            outputPath = shapeOutputPath;
+            break;
+            
+          case 'rotate':
+            command = await imagemagick.rotate(currentInputPath, outputPath, {
+              degrees: parseFloat(params.degrees) || 0,
+              backgroundColor: params.backgroundColor || '#000000'
+            });
+            break;
+            
+          case 'convert':
+            const convertOutputPath = outputPath.replace(/\.[^.]+$/, `.${params.format || 'jpg'}`);
+            command = await imagemagick.convert(currentInputPath, convertOutputPath, {
+              format: params.format || 'jpg',
+              quality: params.quality || 90
+            });
+            outputPath = convertOutputPath;
+            break;
+            
+          case 'watermark':
+            command = await imagemagick.watermark(currentInputPath, outputPath, {
+              type: params.type || 'text',
+              text: params.text || '',
+              fontSize: parseInt(params.fontSize) || 24,
+              fontFamily: params.fontFamily || 'Microsoft YaHei',
+              color: params.color || '#FFFFFF',
+              strokeColor: params.strokeColor || '',
+              strokeWidth: parseInt(params.strokeWidth) || 0,
+              watermarkImageFilename: params.watermarkImageFilename,
+              watermarkScale: parseFloat(params.watermarkScale) || 1.0,
+              position: params.position || 'bottom-right',
+              x: params.x !== undefined ? parseInt(params.x) : null,
+              y: params.y !== undefined ? parseInt(params.y) : null,
+              opacity: parseFloat(params.opacity) || 1.0
+            });
+            break;
+            
+          case 'adjust':
+            command = await imagemagick.adjust(currentInputPath, outputPath, {
+              brightness: parseFloat(params.brightness) || 0,
+              contrast: parseFloat(params.contrast) || 0,
+              saturation: parseFloat(params.saturation) || 0
+            });
+            break;
+            
+          case 'filter':
+            command = await imagemagick.applyFilter(currentInputPath, outputPath, {
+              filterType: params.filterType,
+              intensity: parseFloat(params.intensity) || 1
+            });
+            break;
+            
+          case 'effects':
+            // effects 需要传递数组格式，每个效果是一个对象
+            const effect = {
+              type: params.effectType,
+              ...params
+            };
+            // 删除 effectType，因为已经转换为 type
+            delete effect.effectType;
+            command = await imagemagick.applyEffects(currentInputPath, outputPath, [effect]);
+            break;
+            
+          default:
+            throw new Error(`不支持的操作类型: ${type}`);
+        }
+        
+        commands.push(command);
+        
+        // 如果当前输入是临时文件，且不是最后一个操作，可以删除
+        if (i > 0 && currentInputPath !== inputPath && fs.existsSync(currentInputPath)) {
+          try {
+            fs.unlinkSync(currentInputPath);
+          } catch (e) {
+            console.warn(`删除临时文件失败: ${currentInputPath}`, e.message);
+          }
+        }
+        
+        // 更新当前输入路径为输出路径
+        currentInputPath = outputPath;
+      }
       
-      const command = await imagemagick.batchProcess(inputPath, outputPath, operations);
-      
-      results.push({
-        original: filename,
-        output: outputFilename,
-        path: `/output/${outputFilename}`,
-        command: command
+      // 清理所有临时文件
+      tempFiles.forEach(tempFile => {
+        if (fs.existsSync(tempFile) && tempFile !== currentInputPath) {
+          try {
+            fs.unlinkSync(tempFile);
+          } catch (e) {
+            console.warn(`清理临时文件失败: ${tempFile}`, e.message);
+          }
+        }
       });
+      
+      const outputFilename = path.basename(currentInputPath);
+      
+      res.json({
+        success: true,
+        outputFile: outputFilename,
+        path: `/output/${outputFilename}`,
+        commands: commands
+      });
+      
+    } catch (error) {
+      // 清理临时文件
+      tempFiles.forEach(tempFile => {
+        if (fs.existsSync(tempFile)) {
+          try {
+            fs.unlinkSync(tempFile);
+          } catch (e) {
+            // 忽略清理错误
+          }
+        }
+      });
+      throw error;
     }
-    
-    res.json({ success: true, results });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

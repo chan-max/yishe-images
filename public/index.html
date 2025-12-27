@@ -624,14 +624,14 @@
           </div>
         </div>
 
-        <!-- 图像处理 -->
-        <div class="view-container" :class="{ active: state.currentView === 'process' }">
+        <!-- 链式处理 -->
+        <div class="view-container" :class="{ active: state.currentView === 'chain-process' }">
           <div class="section">
             <h1 class="ui header">
-              <i class="wrench icon"></i>
+              <i class="sitemap icon"></i>
               <div class="content">
-                图像处理
-                <div class="sub header">上传图片并进行各种处理操作</div>
+                链式图片处理
+                <div class="sub header">按顺序执行多个图片处理操作</div>
               </div>
             </h1>
 
@@ -642,966 +642,547 @@
               <!-- 统一输入框 -->
               <div class="ui form">
                 <div class="field" style="margin-bottom: 0.75rem;">
-                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（网络 URL 或选择本地文件）</label>
+                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（网络 URL）</label>
                   <div class="ui action input" style="font-size: 0.9em;">
-                    <input type="text" v-model="state.imageUrl" placeholder="输入网络图片 URL" @keyup.enter="handleUrlUpload" style="font-size: 0.9em;">
-                    <button class="ui primary button" :class="{ loading: state.loading.urlUpload }" @click="handleUrlUpload" :disabled="!state.imageUrl || state.loading.urlUpload" style="font-size: 0.85em; padding: 0.5em 0.75em;">
+                    <input type="text" v-model="state.chainProcessImageUrl" placeholder="输入网络图片 URL" @keyup.enter="handleChainProcessUrlUpload" style="font-size: 0.9em;">
+                    <button class="ui primary button" :class="{ loading: state.loading.chainProcessUrlUpload }" @click="handleChainProcessUrlUpload" :disabled="!state.chainProcessImageUrl || state.loading.chainProcessUrlUpload" style="font-size: 0.85em; padding: 0.5em 0.75em;">
                       <i class="download icon"></i> 加载
                     </button>
                   </div>
                   <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">支持 JPG, PNG, GIF, BMP, WEBP, SVG, TIFF</p>
                 </div>
               </div>
-              <div v-if="state.currentImage" style="margin-top: 0.75rem;">
-                <img :src="state.currentImage" class="image-preview" alt="当前图片">
+              <div v-if="state.chainProcessImage" style="margin-top: 0.75rem;">
+                <img :src="state.chainProcessImage" class="image-preview" alt="当前图片">
                 <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
-                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>文件名:</strong> {{ state.currentFilename }}</p>
-                  <p v-if="state.imageInfo" style="margin: 0.25rem 0; font-size: 0.85em;"><strong>尺寸:</strong> {{ state.imageInfo.width }} × {{ state.imageInfo.height }} px</p>
+                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>文件名:</strong> {{ state.chainProcessFilename }}</p>
+                  <p v-if="state.chainProcessImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;">
+                    <strong>尺寸:</strong> {{ state.chainProcessImageInfo.width }} × {{ state.chainProcessImageInfo.height }} px
+                  </p>
                 </div>
               </div>
             </div>
 
-            <!-- 操作面板 -->
-            <div class="ui segment compact-segment">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">基本操作</h3>
-              
-              <!-- 调整大小 -->
-              <div class="collapsible-section">
-                <div class="collapsible-header" :class="{ collapsed: state.resizeCollapsed }" @click="state.resizeCollapsed = !state.resizeCollapsed">
-                  <span style="font-size: 0.9em; font-weight: 500;">调整大小</span>
-                  <i class="chevron down icon"></i>
-                </div>
-                <div class="collapsible-content" :class="{ collapsed: state.resizeCollapsed }">
-                  <div class="ui form compact-form">
-                <div class="two fields">
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">宽度 (px)</label>
-                    <input type="number" v-model.number="state.operations.resize.width" placeholder="宽度" style="font-size: 0.9em;">
-                  </div>
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">高度 (px)</label>
-                    <input type="number" v-model.number="state.operations.resize.height" placeholder="高度" style="font-size: 0.9em;">
-                  </div>
-                </div>
-                <div class="field" style="margin-bottom: 0.5rem;">
-                  <div class="ui checkbox" style="font-size: 0.85em;">
-                    <input type="checkbox" v-model="state.operations.resize.maintainAspectRatio" checked>
-                    <label>保持宽高比</label>
-                  </div>
-                </div>
-                <div class="field form-field">
-                  <label>质量 (1-100)</label>
-                  <input type="range" v-model.number="state.operations.resize.quality" min="1" max="100">
-                  <span>{{ state.operations.resize.quality }}</span>
-                </div>
-                <button class="ui small primary button" :class="{ loading: state.loading.resize }" @click="handleResize" :disabled="!state.currentFilename || state.loading.resize">
-                  应用调整大小
-                </button>
-              </div>
-
-              <!-- 裁剪 -->
-              <div class="ui form" style="margin-top: 2rem;">
-                <h4 class="ui dividing header">裁剪</h4>
-                <div class="two fields">
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">X 坐标</label>
-                    <input type="number" v-model.number="state.operations.crop.x" placeholder="0" style="font-size: 0.9em;">
-                  </div>
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">Y 坐标</label>
-                    <input type="number" v-model.number="state.operations.crop.y" placeholder="0" style="font-size: 0.9em;">
-                  </div>
-                </div>
-                <div class="two fields">
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">宽度 (px)</label>
-                    <input type="number" v-model.number="state.operations.crop.width" placeholder="宽度" style="font-size: 0.9em;">
-                  </div>
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">高度 (px)</label>
-                    <input type="number" v-model.number="state.operations.crop.height" placeholder="高度" style="font-size: 0.9em;">
-                  </div>
-                </div>
-                <button class="ui small primary button" :class="{ loading: state.loading.crop }" @click="handleCrop" :disabled="!state.currentFilename || state.loading.crop" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                  应用裁剪
-                </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 旋转 -->
-              <div class="collapsible-section">
-                <div class="collapsible-header" :class="{ collapsed: state.rotateCollapsed }" @click="state.rotateCollapsed = !state.rotateCollapsed">
-                  <span style="font-size: 0.9em; font-weight: 500;">旋转</span>
-                  <i class="chevron down icon"></i>
-                </div>
-                <div class="collapsible-content" :class="{ collapsed: state.rotateCollapsed }">
-                  <div class="ui form compact-form">
-                <div class="field form-field">
-                  <label style="font-size: 0.85em;">角度 (度)</label>
-                  <input type="number" v-model.number="state.operations.rotate.degrees" placeholder="0" min="-360" max="360" style="font-size: 0.9em;">
-                  <div style="margin-top: 0.5rem; display: flex; gap: 0.25rem;">
-                    <button class="ui mini button" @click="state.operations.rotate.degrees = 90" style="font-size: 0.75em; padding: 0.3em 0.5em;">90°</button>
-                    <button class="ui mini button" @click="state.operations.rotate.degrees = 180" style="font-size: 0.75em; padding: 0.3em 0.5em;">180°</button>
-                    <button class="ui mini button" @click="state.operations.rotate.degrees = 270" style="font-size: 0.75em; padding: 0.3em 0.5em;">270°</button>
-                    <button class="ui mini button" @click="state.operations.rotate.degrees = -90" style="font-size: 0.75em; padding: 0.3em 0.5em;">-90°</button>
-                  </div>
-                </div>
-                <div class="field form-field">
-                  <label style="font-size: 0.85em;">背景颜色</label>
-                  <input type="color" v-model="state.operations.rotate.backgroundColor" style="font-size: 0.9em; height: 2.5em;">
-                </div>
-                <button class="ui small primary button" :class="{ loading: state.loading.rotate }" @click="handleRotate" :disabled="!state.currentFilename || state.loading.rotate" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                  应用旋转
-                </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 格式转换 -->
-              <div class="collapsible-section">
-                <div class="collapsible-header" :class="{ collapsed: state.convertCollapsed }" @click="state.convertCollapsed = !state.convertCollapsed">
-                  <span style="font-size: 0.9em; font-weight: 500;">格式转换</span>
-                  <i class="chevron down icon"></i>
-                </div>
-                <div class="collapsible-content" :class="{ collapsed: state.convertCollapsed }">
-                  <div class="ui form compact-form">
-                <div class="field form-field">
-                  <label style="font-size: 0.85em;">目标格式</label>
-                  <select class="ui dropdown" v-model="state.operations.convert.format" style="font-size: 0.9em;">
-                    <option value="jpg">JPG</option>
-                    <option value="png">PNG</option>
-                    <option value="gif">GIF</option>
-                    <option value="webp">WEBP</option>
-                    <option value="bmp">BMP</option>
-                    <option value="tiff">TIFF</option>
-                  </select>
-                </div>
-                <div class="field form-field">
-                  <label style="font-size: 0.85em;">质量 (1-100)</label>
-                  <input type="range" v-model.number="state.operations.convert.quality" min="1" max="100" style="font-size: 0.9em;">
-                  <span style="font-size: 0.85em;">{{ state.operations.convert.quality }}</span>
-                </div>
-                <button class="ui small primary button" :class="{ loading: state.loading.convert }" @click="handleConvert" :disabled="!state.currentFilename || state.loading.convert" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                  转换格式
-                </button>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            <!-- 结果区域 -->
-            <div v-if="state.resultImage" class="ui segment" style="margin-top: 1.5rem;">
-              <h3 class="ui dividing header">对比预览</h3>
-              <div class="ui two column grid" style="margin: 0;">
-                <div class="column" style="padding: 0.5rem;">
-                  <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <strong style="font-size: 0.9em; color: #666;">原始图片</strong>
-                  </div>
-                  <img v-if="state.currentImage" :src="state.currentImage" class="image-preview" alt="原始图片" style="max-height: 400px;">
-                </div>
-                <div class="column" style="padding: 0.5rem;">
-                  <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <strong style="font-size: 0.9em; color: #666;">处理结果</strong>
-                  </div>
-                  <img :src="state.resultImage" class="image-preview" alt="处理结果" style="max-height: 400px;">
-                  <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                    <a :href="state.resultImage" :download="state.resultFilename" class="ui small primary button" style="flex: 1;">
-                      <i class="download icon"></i> 下载图片
-                    </a>
-                    <button class="ui small button" @click="useAsSource" style="flex: 1;">
-                      作为新源图片
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 图片裁剪 -->
-        <div class="view-container" :class="{ active: state.currentView === 'shape-crop' }">
-          <div class="section">
-            <h1 class="ui header">
-              <i class="cut icon"></i>
-              <div class="content">
-                图片裁剪
-                <div class="sub header">使用各种形状裁剪图片（圆形、椭圆、五角星、三角形等）</div>
-              </div>
-            </h1>
-
-            <!-- 上传区域 -->
-            <div class="ui segment compact-segment">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">上传图片</h3>
-              
-              <!-- 统一输入框 -->
-              <div class="ui form">
-                <div class="field" style="margin-bottom: 0.75rem;">
-                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（网络 URL 或选择本地文件）</label>
-                  <div class="ui action input" style="font-size: 0.9em;">
-                    <input type="text" v-model="state.shapeCropImageUrl" placeholder="输入网络图片 URL" @keyup.enter="handleShapeCropUrlUpload" style="font-size: 0.9em;">
-                    <button class="ui primary button" :class="{ loading: state.loading.shapeCropUrlUpload }" @click="handleShapeCropUrlUpload" :disabled="!state.shapeCropImageUrl || state.loading.shapeCropUrlUpload" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                      <i class="download icon"></i> 加载
-                    </button>
-                  </div>
-                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">支持 JPG, PNG, GIF, BMP, WEBP, SVG, TIFF</p>
-                </div>
-              </div>
-              <div v-if="state.shapeCropCurrentImage" style="margin-top: 0.75rem;">
-                <img :src="state.shapeCropCurrentImage" class="image-preview" alt="当前图片">
-                <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
-                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>文件名:</strong> {{ state.shapeCropCurrentFilename }}</p>
-                  <p v-if="state.shapeCropImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;"><strong>尺寸:</strong> {{ state.shapeCropImageInfo.width }} × {{ state.shapeCropImageInfo.height }} px</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- 裁剪设置 -->
-            <div class="ui segment compact-segment">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">裁剪设置</h3>
-              
-              <div class="ui form compact-form">
-                <!-- 形状选择 -->
-                <div class="field form-field">
-                  <label style="font-size: 0.85em;">裁剪形状</label>
-                  <div class="ui grid" style="margin: 0.5rem 0;">
-                    <div class="four column row" style="padding: 0;">
-                      <div class="column" style="padding: 0.25rem;">
-                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'circle' }" @click="state.shapeCropOptions.shape = 'circle'" style="font-size: 0.85em; padding: 0.5em;">
-                          <i class="circle icon"></i> 圆形
-                        </div>
-                      </div>
-                      <div class="column" style="padding: 0.25rem;">
-                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'ellipse' }" @click="state.shapeCropOptions.shape = 'ellipse'" style="font-size: 0.85em; padding: 0.5em;">
-                          <i class="ellipsis horizontal icon"></i> 椭圆
-                        </div>
-                      </div>
-                      <div class="column" style="padding: 0.25rem;">
-                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'star' }" @click="state.shapeCropOptions.shape = 'star'" style="font-size: 0.85em; padding: 0.5em;">
-                          <i class="star icon"></i> 五角星
-                        </div>
-                      </div>
-                      <div class="column" style="padding: 0.25rem;">
-                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'triangle' }" @click="state.shapeCropOptions.shape = 'triangle'" style="font-size: 0.85em; padding: 0.5em;">
-                          <i class="triangle icon"></i> 三角形
-                        </div>
-                      </div>
-                    </div>
-                    <div class="four column row" style="padding: 0;">
-                      <div class="column" style="padding: 0.25rem;">
-                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'diamond' }" @click="state.shapeCropOptions.shape = 'diamond'" style="font-size: 0.85em; padding: 0.5em;">
-                          <i class="gem icon"></i> 菱形
-                        </div>
-                      </div>
-                      <div class="column" style="padding: 0.25rem;">
-                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'heart' }" @click="state.shapeCropOptions.shape = 'heart'" style="font-size: 0.85em; padding: 0.5em;">
-                          <i class="heart icon"></i> 心形
-                        </div>
-                      </div>
-                      <div class="column" style="padding: 0.25rem;">
-                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'hexagon' }" @click="state.shapeCropOptions.shape = 'hexagon'" style="font-size: 0.85em; padding: 0.5em;">
-                          <i class="hexagon icon"></i> 六边形
-                        </div>
-                      </div>
-                      <div class="column" style="padding: 0.25rem;">
-                        <div class="ui fluid button" :class="{ primary: state.shapeCropOptions.shape === 'octagon' }" @click="state.shapeCropOptions.shape = 'octagon'" style="font-size: 0.85em; padding: 0.5em;">
-                          <i class="stop icon"></i> 八边形
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 尺寸设置 -->
-                <div class="two fields">
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">宽度 (px)</label>
-                    <input type="number" v-model.number="state.shapeCropOptions.width" placeholder="200" min="10" style="font-size: 0.9em;">
-                  </div>
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">高度 (px)</label>
-                    <input type="number" v-model.number="state.shapeCropOptions.height" placeholder="200" min="10" style="font-size: 0.9em;">
-                    <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">圆形时高度等于宽度</p>
-                  </div>
-                </div>
-
-                <!-- 位置设置 -->
-                <div class="two fields">
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">中心 X 坐标 (px，留空则居中)</label>
-                    <input type="number" v-model.number="state.shapeCropOptions.x" placeholder="居中" min="0" style="font-size: 0.9em;">
-                  </div>
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">中心 Y 坐标 (px，留空则居中)</label>
-                    <input type="number" v-model.number="state.shapeCropOptions.y" placeholder="居中" min="0" style="font-size: 0.9em;">
-                  </div>
-                </div>
-
-                <!-- 背景颜色 -->
-                <div class="field form-field">
-                  <label style="font-size: 0.85em;">背景颜色</label>
-                  <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="color" v-model="state.shapeCropOptions.backgroundColor" style="font-size: 0.9em; height: 2.5em; width: 80px;">
-                    <input type="text" v-model="state.shapeCropOptions.backgroundColor" placeholder="transparent" style="flex: 1; font-size: 0.85em;">
-                  </div>
-                  <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">支持颜色名称（如 transparent）或十六进制（如 #FFFFFF）</p>
-                </div>
-
-                <button class="ui small primary button" :class="{ loading: state.loading.shapeCrop }" @click="handleShapeCrop" :disabled="!state.shapeCropCurrentFilename || state.loading.shapeCrop" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                  <i class="cut icon"></i> 执行裁剪
-                </button>
-              </div>
-            </div>
-
-            <!-- 结果区域 -->
-            <div v-if="state.shapeCropResultImage" class="ui segment compact-segment" style="margin-top: 1rem;">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">对比预览</h3>
-              <div class="ui two column grid" style="margin: 0;">
-                <div class="column" style="padding: 0.5rem;">
-                  <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <strong style="font-size: 0.9em; color: #666;">原始图片</strong>
-                  </div>
-                  <img v-if="state.shapeCropCurrentImage" :src="state.shapeCropCurrentImage" class="image-preview" alt="原始图片" style="max-height: 400px;">
-                </div>
-                <div class="column" style="padding: 0.5rem;">
-                  <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <strong style="font-size: 0.9em; color: #666;">裁剪结果 ({{ state.shapeCropOptions.shape }})</strong>
-                  </div>
-                  <img :src="state.shapeCropResultImage" class="image-preview" alt="裁剪结果" style="max-height: 400px;">
-                  <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
-                    <a :href="state.shapeCropResultImage" :download="state.shapeCropResultFilename" class="ui small primary button" style="flex: 1;">
-                      <i class="download icon"></i> 下载图片
-                    </a>
-                    <button class="ui small button" @click="useShapeCropAsSource" style="flex: 1;">
-                      作为新源图片
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 水印 -->
-        <div class="view-container" :class="{ active: state.currentView === 'watermark' }">
-          <div class="section">
-            <h1 class="ui header">
-              <i class="tint icon"></i>
-              <div class="content">
-                水印
-                <div class="sub header">为图片添加文字或图片水印</div>
-              </div>
-            </h1>
-
-            <!-- 上传区域 -->
-            <div class="ui segment compact-segment">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">上传图片</h3>
-              
-              <!-- 统一输入框 -->
-              <div class="ui form">
-                <div class="field" style="margin-bottom: 0.75rem;">
-                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（网络 URL 或选择本地文件）</label>
-                  <div class="ui action input" style="font-size: 0.9em;">
-                    <input type="text" v-model="state.watermarkImageUrl" placeholder="输入网络图片 URL" @keyup.enter="handleWatermarkUrlUpload" style="font-size: 0.9em;">
-                    <button class="ui primary button" :class="{ loading: state.loading.watermarkUrlUpload }" @click="handleWatermarkUrlUpload" :disabled="!state.watermarkImageUrl || state.loading.watermarkUrlUpload" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                      <i class="download icon"></i> 加载
-                    </button>
-                  </div>
-                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">支持 JPG, PNG, GIF, BMP, WEBP, SVG, TIFF</p>
-                </div>
-              </div>
-              <div v-if="state.watermarkCurrentImage" style="margin-top: 0.75rem;">
-                <img :src="state.watermarkCurrentImage" class="image-preview" alt="当前图片">
-                <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
-                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>文件名:</strong> {{ state.watermarkCurrentFilename }}</p>
-                  <p v-if="state.watermarkImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;"><strong>尺寸:</strong> {{ state.watermarkImageInfo.width }} × {{ state.watermarkImageInfo.height }} px</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- 水印操作面板 -->
-            <div class="ui segment compact-segment">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">水印设置</h3>
-              
-              <div class="ui form compact-form">
-                <!-- 水印类型 -->
-                <div class="field form-field">
-                  <label style="font-size: 0.85em;">水印类型</label>
-                  <select class="ui dropdown" v-model="state.operations.watermark.type" style="font-size: 0.9em;">
-                    <option value="text">文字水印</option>
-                    <option value="image">图片水印</option>
-                  </select>
-                </div>
-
-                <!-- 文字水印选项 -->
-                <template v-if="state.operations.watermark.type === 'text'">
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">水印文字</label>
-                    <input type="text" v-model="state.operations.watermark.text" placeholder="输入水印文字" style="font-size: 0.9em;">
-                  </div>
-                  <div class="two fields">
-                    <div class="field form-field">
-                      <label style="font-size: 0.85em;">字体大小</label>
-                      <input type="number" v-model.number="state.operations.watermark.fontSize" min="8" max="200" style="font-size: 0.9em;">
-                    </div>
-                    <div class="field form-field">
-                      <label style="font-size: 0.85em;">字体</label>
-                      <select class="ui dropdown" v-model="state.operations.watermark.fontFamily" style="font-size: 0.9em;">
-                        <optgroup label="中文字体">
-                          <option value="Microsoft YaHei">微软雅黑</option>
-                          <option value="SimHei">黑体</option>
-                          <option value="SimSun">宋体</option>
-                          <option value="KaiTi">楷体</option>
-                          <option value="FangSong">仿宋</option>
-                        </optgroup>
-                        <optgroup label="英文字体">
-                          <option value="Arial">Arial</option>
-                          <option value="Times-Roman">Times Roman</option>
-                          <option value="Courier">Courier</option>
-                          <option value="Helvetica">Helvetica</option>
-                          <option value="Verdana">Verdana</option>
-                        </optgroup>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="two fields">
-                    <div class="field form-field">
-                      <label style="font-size: 0.85em;">文字颜色</label>
-                      <input type="color" v-model="state.operations.watermark.color" style="font-size: 0.9em; height: 2.5em;">
-                    </div>
-                    <div class="field form-field">
-                      <label style="font-size: 0.85em;">描边颜色</label>
-                      <input type="color" v-model="state.operations.watermark.strokeColor" style="font-size: 0.9em; height: 2.5em;">
-                    </div>
-                  </div>
-                  <div class="field form-field" v-if="state.operations.watermark.strokeColor">
-                    <label style="font-size: 0.85em;">描边宽度</label>
-                    <input type="number" v-model.number="state.operations.watermark.strokeWidth" min="0" max="10" style="font-size: 0.9em;">
-                  </div>
-                </template>
-
-                <!-- 图片水印选项 -->
-                <template v-if="state.operations.watermark.type === 'image'">
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">水印图片</label>
-                    <input type="file" ref="watermarkImageInput" @change="handleWatermarkImageUpload" accept="image/*" style="font-size: 0.9em;">
-                    <div v-if="state.operations.watermark.watermarkImageFilename" class="ui small message" style="margin-top: 0.5rem; padding: 0.5rem;">
-                      <p style="margin: 0; font-size: 0.85em;">已选择: {{ state.operations.watermark.watermarkImageFilename }}</p>
-                    </div>
-                  </div>
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">缩放比例 (0.1 - 2.0)</label>
-                    <input type="range" v-model.number="state.operations.watermark.watermarkScale" min="0.1" max="2.0" step="0.1" style="font-size: 0.9em;">
-                    <span style="font-size: 0.85em;">{{ state.operations.watermark.watermarkScale.toFixed(1) }}</span>
-                  </div>
-                </template>
-
-                <!-- 位置设置 -->
-                <div class="field form-field">
-                  <label style="font-size: 0.85em;">位置</label>
-                  <select class="ui dropdown" v-model="state.operations.watermark.position" style="font-size: 0.9em;">
-                    <option value="top-left">左上</option>
-                    <option value="top-center">上中</option>
-                    <option value="top-right">右上</option>
-                    <option value="center-left">左中</option>
-                    <option value="center">居中</option>
-                    <option value="center-right">右中</option>
-                    <option value="bottom-left">左下</option>
-                    <option value="bottom-center">下中</option>
-                    <option value="bottom-right">右下</option>
-                    <option value="custom">自定义坐标</option>
-                  </select>
-                </div>
-
-                <!-- 自定义坐标 -->
-                <template v-if="state.operations.watermark.position === 'custom'">
-                  <div class="two fields">
-                    <div class="field form-field">
-                      <label style="font-size: 0.85em;">X 坐标 (px)</label>
-                      <input type="number" v-model.number="state.operations.watermark.x" placeholder="0" style="font-size: 0.9em;">
-                    </div>
-                    <div class="field form-field">
-                      <label style="font-size: 0.85em;">Y 坐标 (px)</label>
-                      <input type="number" v-model.number="state.operations.watermark.y" placeholder="0" style="font-size: 0.9em;">
-                    </div>
-                  </div>
-                </template>
-
-                <!-- 边距设置 -->
-                <template v-if="state.operations.watermark.position !== 'custom'">
-                  <div class="two fields">
-                    <div class="field form-field">
-                      <label style="font-size: 0.85em;">X 边距 (px)</label>
-                      <input type="number" v-model.number="state.operations.watermark.marginX" min="0" style="font-size: 0.9em;">
-                    </div>
-                    <div class="field form-field">
-                      <label style="font-size: 0.85em;">Y 边距 (px)</label>
-                      <input type="number" v-model.number="state.operations.watermark.marginY" min="0" style="font-size: 0.9em;">
-                    </div>
-                  </div>
-                </template>
-
-                <!-- 其他选项 -->
-                <div class="two fields">
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">透明度 (0-1)</label>
-                    <input type="range" v-model.number="state.operations.watermark.opacity" min="0" max="1" step="0.1" style="font-size: 0.9em;">
-                    <span style="font-size: 0.85em;">{{ state.operations.watermark.opacity.toFixed(1) }}</span>
-                  </div>
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">旋转角度 (度)</label>
-                    <input type="number" v-model.number="state.operations.watermark.angle" min="-360" max="360" style="font-size: 0.9em;">
-                  </div>
-                </div>
-
-                <!-- 重复平铺 -->
-                <div class="field" style="margin-bottom: 0.5rem;">
-                  <div class="ui checkbox" style="font-size: 0.85em;">
-                    <input type="checkbox" v-model="state.operations.watermark.repeat">
-                    <label>重复平铺</label>
-                  </div>
-                </div>
-                <div class="field form-field" v-if="state.operations.watermark.repeat">
-                  <label style="font-size: 0.85em;">平铺间距 (px)</label>
-                  <input type="number" v-model.number="state.operations.watermark.tileSize" min="50" placeholder="100" style="font-size: 0.9em;">
-                </div>
-
-                <button class="ui small primary button" :class="{ loading: state.loading.watermark }" @click="handleWatermark" :disabled="!state.watermarkCurrentFilename || state.loading.watermark" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                  添加水印
-                </button>
-              </div>
-            </div>
-
-            <!-- 结果区域 -->
-            <div v-if="state.watermarkResultImage" class="ui segment compact-segment" style="margin-top: 1rem;">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">对比预览</h3>
-              <div class="ui two column grid" style="margin: 0;">
-                <div class="column" style="padding: 0.5rem;">
-                  <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <strong style="font-size: 0.9em; color: #666;">原始图片</strong>
-                  </div>
-                  <img v-if="state.watermarkCurrentImage" :src="state.watermarkCurrentImage" class="image-preview" alt="原始图片" style="max-height: 400px;">
-                </div>
-                <div class="column" style="padding: 0.5rem;">
-                  <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <strong style="font-size: 0.9em; color: #666;">处理结果</strong>
-                  </div>
-                  <img :src="state.watermarkResultImage" class="image-preview" alt="处理结果" style="max-height: 400px;">
-                  <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
-                    <a :href="state.watermarkResultImage" :download="state.watermarkResultFilename" class="ui small primary button" style="flex: 1;">
-                      <i class="download icon"></i> 下载图片
-                    </a>
-                    <button class="ui small button" @click="useWatermarkAsSource" style="flex: 1;">
-                      作为新源图片
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 图片裂变 -->
-        <div class="view-container" :class="{ active: state.currentView === 'effects' }">
-          <div class="section">
-            <h1 class="ui header">
-              <i class="magic icon"></i>
-              <div class="content">
-                图片裂变
-                <div class="sub header">应用各种图片效果，支持多种效果组合</div>
-              </div>
-            </h1>
-
-            <!-- 上传区域 -->
-            <div class="ui segment compact-segment">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">上传图片</h3>
-              
-              <!-- 统一输入框 -->
-              <div class="ui form">
-                <div class="field" style="margin-bottom: 0.75rem;">
-                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（网络 URL 或选择本地文件）</label>
-                  <div class="ui action input" style="font-size: 0.9em;">
-                    <input type="text" v-model="state.effectsImageUrl" placeholder="输入网络图片 URL" @keyup.enter="handleEffectsUrlUpload" style="font-size: 0.9em;">
-                    <button class="ui primary button" :class="{ loading: state.loading.effectsUrlUpload }" @click="handleEffectsUrlUpload" :disabled="!state.effectsImageUrl || state.loading.effectsUrlUpload" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                      <i class="download icon"></i> 加载
-                    </button>
-                  </div>
-                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">支持 JPG, PNG, GIF, BMP, WEBP, SVG, TIFF</p>
-                </div>
-              </div>
-              <div v-if="state.effectsCurrentImage" style="margin-top: 0.75rem;">
-                <img :src="state.effectsCurrentImage" class="image-preview" alt="当前图片">
-                <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
-                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>文件名:</strong> {{ state.effectsCurrentFilename }}</p>
-                  <p v-if="state.effectsImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;"><strong>尺寸:</strong> {{ state.effectsImageInfo.width }} × {{ state.effectsImageInfo.height }} px</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- 效果选择区域 -->
+            <!-- 操作链配置 -->
             <div class="ui segment compact-segment">
               <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">
-                效果列表
-                <button class="ui tiny button" @click="addEffect" style="margin-left: 0.5rem; font-size: 0.8em;">
-                  <i class="plus icon"></i> 添加效果
+                操作链配置
+                <button class="ui mini button" @click="state.operationChain = []" style="float: right;">
+                  <i class="trash icon"></i> 清空
                 </button>
               </h3>
               
-              <div v-if="state.effectsList.length === 0" class="ui message" style="padding: 1rem; text-align: center; color: #999;">
-                点击"添加效果"按钮开始添加图片效果
+              <!-- 添加操作 -->
+              <div class="ui form" style="margin-bottom: 1rem;">
+                <div class="field">
+                  <label>添加操作</label>
+                  <div class="ui action input" style="display: flex;">
+                    <select v-model="state.selectedOperationType" class="ui dropdown" style="flex: 1; min-width: 0;">
+                      <option value="">请选择操作类型</option>
+                      <option v-for="op in operationTypes" :key="op.value" :value="op.value">
+                        {{ op.label }} - {{ op.description }}
+                      </option>
+                    </select>
+                    <button class="ui primary button" @click="addSelectedOperation" :disabled="!state.selectedOperationType" style="margin-left: 0.5rem;">
+                      <i class="plus icon"></i> 添加
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div v-for="(effect, index) in state.effectsList" :key="index" class="ui segment" style="margin-bottom: 0.75rem; padding: 0.75rem;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
-                  <strong style="font-size: 0.9em;">效果 {{ index + 1 }}: {{ getEffectName(effect.type) }}</strong>
-                  <button class="ui tiny red button" @click="removeEffect(index)" style="font-size: 0.75em; padding: 0.25em 0.5em;">
-                    <i class="trash icon"></i> 删除
-                  </button>
+              <!-- 操作列表 Tab -->
+              <div v-if="state.operationChain.length > 0">
+                <!-- Tab 标签栏 -->
+                <div style="overflow-x: auto; margin-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
+                  <div style="display: flex; min-width: max-content; overflow-y: hidden; gap: 0.5rem;">
+                    <div 
+                      v-for="(operation, index) in state.operationChain" 
+                      :key="operation.id"
+                      @click="selectOperation(index)"
+                      :class="['ui', 'button', { 'primary': state.selectedOperationIndex === index }]"
+                      style="white-space: nowrap; border-radius: 4px 4px 0 0; margin-bottom: -2px; border-bottom: 2px solid transparent;"
+                      :style="{ 'border-bottom-color': state.selectedOperationIndex === index ? '#2185d0' : 'transparent' }"
+                    >
+                      <span style="margin-right: 0.5rem;">{{ index + 1 }}. {{ getOperationLabel(operation.type) }}</span>
+                      <button 
+                        class="ui mini icon button" 
+                        @click.stop="removeOperationWithIndex(index)"
+                        style="padding: 0.3em; margin-left: 0.25rem;"
+                      >
+                        <i class="close icon"></i>
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 
-                <div class="ui form compact-form">
-                  <div class="field form-field">
-                    <label style="font-size: 0.85em;">效果类型</label>
-                    <select class="ui dropdown" v-model="effect.type" style="font-size: 0.9em;" @change="updateEffectParams(effect)">
-                      <optgroup label="基础效果">
-                        <option value="grayscale">黑白化</option>
-                        <option value="negate">负片</option>
-                        <option value="sepia">怀旧</option>
-                      </optgroup>
-                      <optgroup label="模糊和锐化">
-                        <option value="blur">模糊</option>
-                        <option value="gaussian-blur">高斯模糊</option>
-                        <option value="motion-blur">运动模糊</option>
-                        <option value="sharpen">锐化</option>
-                        <option value="unsharp">非锐化遮罩</option>
-                      </optgroup>
-                      <optgroup label="艺术效果">
-                        <option value="charcoal">炭笔画</option>
-                        <option value="oil-painting">油画</option>
-                        <option value="sketch">素描</option>
-                        <option value="emboss">浮雕</option>
-                        <option value="edge">边缘检测</option>
-                        <option value="posterize">海报化</option>
-                      </optgroup>
-                      <optgroup label="像素化">
-                        <option value="pixelate">像素化</option>
-                        <option value="mosaic">马赛克</option>
-                      </optgroup>
-                      <optgroup label="颜色调整">
-                        <option value="brightness">亮度</option>
-                        <option value="contrast">对比度</option>
-                        <option value="saturation">饱和度</option>
-                        <option value="hue">色相</option>
-                        <option value="colorize">着色</option>
-                        <option value="tint">色调</option>
-                      </optgroup>
-                      <optgroup label="特殊效果">
-                        <option value="noise">噪点</option>
-                        <option value="despeckle">去噪点</option>
-                        <option value="vignette">晕影</option>
-                        <option value="solarize">曝光</option>
-                        <option value="swirl">漩涡</option>
-                        <option value="wave">波浪</option>
-                        <option value="implode">内爆</option>
-                        <option value="explode">爆炸</option>
-                        <option value="spread">扩散</option>
-                        <option value="normalize">标准化</option>
-                        <option value="equalize">均衡化</option>
-                        <option value="gamma">伽马校正</option>
-                        <option value="threshold">阈值化</option>
-                        <option value="quantize">量化</option>
-                      </optgroup>
-                    </select>
-                  </div>
-
-                  <!-- 效果说明区域 -->
-                  <div class="ui info message" style="margin-top: 0.75rem; padding: 0.75rem; font-size: 0.85em;">
-                    <div style="margin-bottom: 0.5rem;">
-                      <strong style="color: #2185d0;">定义：</strong>
-                      <span>{{ getEffectOfficialTerm(effect.type) }}</span>
+                <!-- 当前选中操作的配置 -->
+                <div v-if="state.operationChain.length > 0 && state.selectedOperationIndex >= 0 && state.selectedOperationIndex < state.operationChain.length" class="ui segment" style="padding: 0.75rem;">
+                  <div style="display: flex; align-items: center; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e0e0e0;">
+                    <div style="flex: 1;">
+                      <span style="font-weight: bold; margin-right: 0.5rem;">{{ state.selectedOperationIndex + 1 }}. {{ getOperationLabel(state.operationChain[state.selectedOperationIndex].type) }}</span>
+                      <p style="font-size: 0.85em; color: #666; margin: 0.25rem 0 0 0;">{{ getOperationDescription(state.operationChain[state.selectedOperationIndex].type) }}</p>
                     </div>
-                    <div style="margin-bottom: 0.5rem;">
-                      <strong style="color: #2185d0;">描述：</strong>
-                      <span>{{ getEffectDescription(effect.type) }}</span>
-                    </div>
-                    <div style="color: #666; font-size: 0.9em;">
-                      <strong>效果说明：</strong>
-                      <span>{{ getEffectExplanation(effect.type) }}</span>
+                    <div class="ui mini buttons" style="margin-left: auto;">
+                      <button class="ui button" @click="moveOperationUp(state.selectedOperationIndex)" :disabled="state.selectedOperationIndex === 0">
+                        <i class="arrow up icon"></i>
+                      </button>
+                      <button class="ui button" @click="moveOperationDown(state.selectedOperationIndex)" :disabled="state.selectedOperationIndex === state.operationChain.length - 1">
+                        <i class="arrow down icon"></i>
+                      </button>
                     </div>
                   </div>
-
-                  <!-- 参数表单区域 -->
-                  <div class="ui divider" style="margin: 0.75rem 0;"></div>
-                  <div style="font-size: 0.85em; color: #666; margin-bottom: 0.5rem; font-weight: bold;">效果参数</div>
                   
-                  <!-- 灰度转换方法参数 -->
-                  <template v-if="needsMethod(effect.type)">
-                    <div class="field form-field" style="margin-bottom: 0.75rem;">
-                      <label style="font-size: 0.85em;">转换方法</label>
-                      <select class="ui dropdown" v-model="effect.method" style="font-size: 0.9em;">
-                        <option value="Rec601Luma">Rec601 亮度加权（标准）</option>
-                        <option value="Rec709Luma">Rec709 亮度加权</option>
-                        <option value="luminance">亮度加权法</option>
-                        <option value="average">平均法</option>
-                        <option value="desaturate">去饱和度法</option>
-                      </select>
-                      <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">选择灰度转换的算法方法</p>
-                    </div>
-                  </template>
-
-                  <!-- 灰度强度参数 -->
-                  <template v-if="needsGrayscaleIntensity(effect.type)">
-                    <div class="field form-field" style="margin-bottom: 0.75rem;">
-                      <label style="font-size: 0.85em;">灰度强度 <span style="color: #999; font-weight: normal;">(%)</span></label>
-                      <input type="range" v-model.number="effect.intensity" min="0" max="100" step="1" style="width: 100%; margin-bottom: 0.25rem;">
-                      <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="number" v-model.number="effect.intensity" min="0" max="100" step="1" style="flex: 1; font-size: 0.9em;">
-                        <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.intensity }}%</span>
-                      </div>
-                      <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">控制灰度化的强度，100%为完全黑白，0%为原图</p>
-                    </div>
-                  </template>
-                  
-                  <!-- 两列布局的参数表单 -->
-                  <div class="two fields" style="margin-bottom: 0.5rem;">
-                    <!-- 半径参数 -->
-                    <template v-if="needsRadius(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">半径 <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'radius') }})</span></label>
-                        <input type="range" v-model.number="effect.radius" :min="getMinValue(effect.type, 'radius')" :max="getMaxValue(effect.type, 'radius')" :step="getStepValue(effect.type, 'radius')" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.radius" :min="getMinValue(effect.type, 'radius')" :max="getMaxValue(effect.type, 'radius')" :step="getStepValue(effect.type, 'radius')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.radius, getStepValue(effect.type, 'radius')) }}</span>
+                  <!-- 操作参数配置 -->
+                  <div class="ui form">
+                    <template v-if="state.operationChain[state.selectedOperationIndex].type === 'resize'">
+                      <div class="two fields">
+                        <div class="field">
+                          <label>宽度 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.width" placeholder="宽度">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">目标图片宽度，范围：1-10000，推荐：800-1920</p>
                         </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'radius') }}</p>
+                        <div class="field">
+                          <label>高度 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.height" placeholder="高度">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">目标图片高度，范围：1-10000，推荐：600-1080</p>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <div class="ui checkbox">
+                          <input type="checkbox" v-model="state.operationChain[state.selectedOperationIndex].params.maintainAspectRatio">
+                          <label>保持宽高比</label>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">勾选后按比例缩放，不勾选则强制拉伸到目标尺寸（可能变形）</p>
+                      </div>
+                      <div class="field">
+                        <label>质量 <span style="color: #999; font-weight: normal;">(%)</span></label>
+                        <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.quality" min="1" max="100" placeholder="质量 (1-100)">
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">图片压缩质量，范围：1-100，推荐：85-95（数值越高质量越好但文件越大）</p>
                       </div>
                     </template>
-
-                    <!-- 标准差参数 -->
-                    <template v-if="needsSigma(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">标准差 <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'sigma') }})</span></label>
-                        <input type="range" v-model.number="effect.sigma" :min="getMinValue(effect.type, 'sigma')" :max="getMaxValue(effect.type, 'sigma')" :step="getStepValue(effect.type, 'sigma')" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.sigma" :min="getMinValue(effect.type, 'sigma')" :max="getMaxValue(effect.type, 'sigma')" :step="getStepValue(effect.type, 'sigma')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.sigma, getStepValue(effect.type, 'sigma')) }}</span>
+                    
+                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'crop'">
+                      <div class="two fields">
+                        <div class="field">
+                          <label>X坐标 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.x" placeholder="X坐标">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">裁剪区域左上角的X坐标，范围：0-图片宽度，推荐：从0开始</p>
                         </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'sigma') }}</p>
+                        <div class="field">
+                          <label>Y坐标 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.y" placeholder="Y坐标">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">裁剪区域左上角的Y坐标，范围：0-图片高度，推荐：从0开始</p>
+                        </div>
+                      </div>
+                      <div class="two fields">
+                        <div class="field">
+                          <label>宽度 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.width" placeholder="宽度">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">裁剪区域的宽度，范围：1-图片宽度，需确保 X+宽度 ≤ 图片宽度</p>
+                        </div>
+                        <div class="field">
+                          <label>高度 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.height" placeholder="高度">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">裁剪区域的高度，范围：1-图片高度，需确保 Y+高度 ≤ 图片高度</p>
+                        </div>
                       </div>
                     </template>
-                  </div>
-
-                  <div class="two fields" style="margin-bottom: 0.5rem;">
-                    <!-- 强度参数 -->
-                    <template v-if="needsIntensity(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">强度 <span style="color: #999; font-weight: normal;">(%)</span></label>
-                        <input type="range" v-model.number="effect.intensity" :min="getMinValue(effect.type, 'intensity')" :max="getMaxValue(effect.type, 'intensity')" :step="getStepValue(effect.type, 'intensity')" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.intensity" :min="getMinValue(effect.type, 'intensity')" :max="getMaxValue(effect.type, 'intensity')" :step="getStepValue(effect.type, 'intensity')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.intensity }}%</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'intensity') }}</p>
-                      </div>
-                    </template>
-
-                    <!-- 数值参数 -->
-                    <template v-if="needsValue(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">{{ getValueLabel(effect.type) }} <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'value') }})</span></label>
-                        <input type="range" v-model.number="effect.value" :min="getMinValue(effect.type, 'value')" :max="getMaxValue(effect.type, 'value')" :step="getStepValue(effect.type, 'value')" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.value" :min="getMinValue(effect.type, 'value')" :max="getMaxValue(effect.type, 'value')" :step="getStepValue(effect.type, 'value')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.value, getStepValue(effect.type, 'value')) }}</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'value') }}</p>
-                      </div>
-                    </template>
-                  </div>
-
-                  <div class="two fields" style="margin-bottom: 0.5rem;">
-                    <!-- 颜色参数 -->
-                    <template v-if="needsColor(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">颜色</label>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="color" v-model="effect.color" style="flex: 1; font-size: 0.9em; height: 2.5em; cursor: pointer;">
-                          <input type="text" v-model="effect.color" style="flex: 1; font-size: 0.85em; padding: 0.4em;" placeholder="#FF0000">
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'color') }}</p>
-                      </div>
-                    </template>
-
-                    <!-- 尺寸参数 -->
-                    <template v-if="needsSize(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">尺寸 <span style="color: #999; font-weight: normal;">(像素)</span></label>
-                        <input type="range" v-model.number="effect.size" :min="getMinValue(effect.type, 'size')" :max="getMaxValue(effect.type, 'size')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.size" :min="getMinValue(effect.type, 'size')" :max="getMaxValue(effect.type, 'size')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.size }}px</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'size') }}</p>
-                      </div>
-                    </template>
-                  </div>
-
-                  <div class="two fields" style="margin-bottom: 0.5rem;">
-                    <!-- 角度参数 -->
-                    <template v-if="needsAngle(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">角度 <span style="color: #999; font-weight: normal;">(度)</span></label>
-                        <input type="range" v-model.number="effect.angle" :min="getMinValue(effect.type, 'angle')" :max="getMaxValue(effect.type, 'angle')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.angle" :min="getMinValue(effect.type, 'angle')" :max="getMaxValue(effect.type, 'angle')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.angle }}°</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'angle') }}</p>
-                      </div>
-                    </template>
-
-                    <!-- 数量参数 -->
-                    <template v-if="needsAmount(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">数量 <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'amount') }})</span></label>
-                        <input type="range" v-model.number="effect.amount" :min="getMinValue(effect.type, 'amount')" :max="getMaxValue(effect.type, 'amount')" :step="getStepValue(effect.type, 'amount')" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.amount" :min="getMinValue(effect.type, 'amount')" :max="getMaxValue(effect.type, 'amount')" :step="getStepValue(effect.type, 'amount')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.amount, getStepValue(effect.type, 'amount')) }}</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'amount') }}</p>
-                      </div>
-                    </template>
-                  </div>
-
-                  <div class="two fields" style="margin-bottom: 0.5rem;">
-                    <!-- 阈值参数 -->
-                    <template v-if="needsThreshold(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">阈值 <span style="color: #999; font-weight: normal;">({{ getParamUnit(effect.type, 'threshold') }})</span></label>
-                        <input type="range" v-model.number="effect.threshold" :min="getMinValue(effect.type, 'threshold')" :max="getMaxValue(effect.type, 'threshold')" :step="getStepValue(effect.type, 'threshold')" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.threshold" :min="getMinValue(effect.type, 'threshold')" :max="getMaxValue(effect.type, 'threshold')" :step="getStepValue(effect.type, 'threshold')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ formatParamValue(effect.threshold, getStepValue(effect.type, 'threshold')) }}</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'threshold') }}</p>
-                      </div>
-                    </template>
-
-                    <!-- 颜色数量参数 -->
-                    <template v-if="needsColors(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">颜色数量</label>
-                        <input type="range" v-model.number="effect.colors" :min="getMinValue(effect.type, 'colors')" :max="getMaxValue(effect.type, 'colors')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.colors" :min="getMinValue(effect.type, 'colors')" :max="getMaxValue(effect.type, 'colors')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.colors }}</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'colors') }}</p>
-                      </div>
-                    </template>
-                  </div>
-
-                  <div class="two fields" style="margin-bottom: 0.5rem;">
-                    <!-- 级别数参数 -->
-                    <template v-if="needsLevels(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">级别数</label>
-                        <input type="range" v-model.number="effect.levels" :min="getMinValue(effect.type, 'levels')" :max="getMaxValue(effect.type, 'levels')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.levels" :min="getMinValue(effect.type, 'levels')" :max="getMaxValue(effect.type, 'levels')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.levels }}</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'levels') }}</p>
-                      </div>
-                    </template>
-
-                    <!-- 噪点类型参数 -->
-                    <template v-if="needsNoiseType(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">噪点类型</label>
-                        <select class="ui dropdown" v-model="effect.noiseType" style="font-size: 0.9em;">
-                          <option value="Uniform">均匀 (Uniform)</option>
-                          <option value="Gaussian">高斯 (Gaussian)</option>
-                          <option value="Impulse">脉冲 (Impulse)</option>
-                          <option value="Laplacian">拉普拉斯 (Laplacian)</option>
-                          <option value="Poisson">泊松 (Poisson)</option>
-                          <option value="Random">随机 (Random)</option>
+                    
+                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'shapeCrop'">
+                      <div class="field">
+                        <label>形状</label>
+                        <select v-model="state.operationChain[state.selectedOperationIndex].params.shape" class="ui dropdown">
+                          <option value="circle">圆形</option>
+                          <option value="ellipse">椭圆</option>
+                          <option value="star">五角星</option>
+                          <option value="triangle">三角形</option>
+                          <option value="diamond">菱形</option>
+                          <option value="heart">心形</option>
+                          <option value="hexagon">六边形</option>
+                          <option value="octagon">八边形</option>
                         </select>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'noiseType') }}</p>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">选择裁剪的形状类型，推荐：圆形、椭圆</p>
+                      </div>
+                      <div class="two fields">
+                        <div class="field">
+                          <label>宽度 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.width" placeholder="宽度">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">形状的宽度，范围：1-图片宽度，推荐：200-800</p>
+                        </div>
+                        <div class="field">
+                          <label>高度 <span style="color: #999; font-weight: normal;">(像素)</span></label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.height" placeholder="高度">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">形状的高度，范围：1-图片高度，推荐：200-800（圆形时建议与宽度相同）</p>
+                        </div>
+                      </div>
+                      <div class="two fields">
+                        <div class="field">
+                          <label>中心 X 坐标（留空则居中）</label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.x" placeholder="居中">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">形状中心的X坐标，留空则自动居中，范围：0-图片宽度</p>
+                        </div>
+                        <div class="field">
+                          <label>中心 Y 坐标（留空则居中）</label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.y" placeholder="居中">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">形状中心的Y坐标，留空则自动居中，范围：0-图片高度</p>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <label>背景颜色</label>
+                        <input type="text" v-model="state.operationChain[state.selectedOperationIndex].params.backgroundColor" placeholder="transparent">
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">形状外的背景颜色，支持颜色名称（如 transparent、white）或十六进制（如 #FFFFFF），推荐：transparent（透明）</p>
                       </div>
                     </template>
-                  </div>
-
-                  <div class="two fields" style="margin-bottom: 0.5rem;">
-                    <!-- 振幅参数 -->
-                    <template v-if="needsAmplitude(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">振幅 <span style="color: #999; font-weight: normal;">(像素)</span></label>
-                        <input type="range" v-model.number="effect.amplitude" :min="getMinValue(effect.type, 'amplitude')" :max="getMaxValue(effect.type, 'amplitude')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.amplitude" :min="getMinValue(effect.type, 'amplitude')" :max="getMaxValue(effect.type, 'amplitude')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.amplitude }}px</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'amplitude') }}</p>
+                    
+                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'rotate'">
+                      <div class="field">
+                        <label>角度 <span style="color: #999; font-weight: normal;">(度)</span></label>
+                        <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.degrees" placeholder="角度">
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">旋转角度，范围：-360 到 360，正数为顺时针，负数为逆时针，推荐：90、180、270</p>
+                      </div>
+                      <div class="field">
+                        <label>背景色</label>
+                        <input type="text" v-model="state.operationChain[state.selectedOperationIndex].params.backgroundColor" placeholder="#000000">
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">旋转后空白区域的背景颜色，支持颜色名称或十六进制（如 #000000、white），推荐：#000000（黑色）或 transparent（透明）</p>
                       </div>
                     </template>
-
-                    <!-- 波长参数 -->
-                    <template v-if="needsWavelength(effect.type)">
-                      <div class="field form-field">
-                        <label style="font-size: 0.85em;">波长 <span style="color: #999; font-weight: normal;">(像素)</span></label>
-                        <input type="range" v-model.number="effect.wavelength" :min="getMinValue(effect.type, 'wavelength')" :max="getMaxValue(effect.type, 'wavelength')" step="1" style="width: 100%; margin-bottom: 0.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                          <input type="number" v-model.number="effect.wavelength" :min="getMinValue(effect.type, 'wavelength')" :max="getMaxValue(effect.type, 'wavelength')" style="flex: 1; font-size: 0.9em;">
-                          <span style="font-size: 0.8em; color: #999; min-width: 3em; text-align: right;">{{ effect.wavelength }}px</span>
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem; margin-bottom: 0;">{{ getParamDescription(effect.type, 'wavelength') }}</p>
+                    
+                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'convert'">
+                      <div class="field">
+                        <label>格式</label>
+                        <select v-model="state.operationChain[state.selectedOperationIndex].params.format" class="ui dropdown">
+                          <option value="jpg">JPG</option>
+                          <option value="png">PNG</option>
+                          <option value="gif">GIF</option>
+                          <option value="webp">WEBP</option>
+                          <option value="bmp">BMP</option>
+                        </select>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">目标图片格式，JPG适合照片（有损压缩），PNG适合图标（无损，支持透明），WEBP适合网页（体积小），推荐：JPG（照片）或 PNG（图标）</p>
                       </div>
+                      <div class="field">
+                        <label>质量 <span style="color: #999; font-weight: normal;">(%)</span></label>
+                        <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.quality" min="1" max="100">
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">图片压缩质量（仅对JPG/WEBP有效），范围：1-100，推荐：85-95（数值越高质量越好但文件越大）</p>
+                      </div>
+                    </template>
+                    
+                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'watermark'">
+                      <div class="field">
+                        <label>类型</label>
+                        <select v-model="state.operationChain[state.selectedOperationIndex].params.type" class="ui dropdown">
+                          <option value="text">文字</option>
+                          <option value="image">图片</option>
+                        </select>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">选择水印类型，文字水印适合添加版权信息，图片水印适合添加Logo</p>
+                      </div>
+                      <div v-if="state.operationChain[state.selectedOperationIndex].params.type === 'text'" class="field">
+                        <label>文字</label>
+                        <input type="text" v-model="state.operationChain[state.selectedOperationIndex].params.text" placeholder="水印文字">
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">要显示的水印文字内容，推荐：版权信息、品牌名称等</p>
+                      </div>
+                      <div class="field">
+                        <label>位置</label>
+                        <select v-model="state.operationChain[state.selectedOperationIndex].params.position" class="ui dropdown">
+                          <option value="top-left">左上</option>
+                          <option value="top-right">右上</option>
+                          <option value="bottom-left">左下</option>
+                          <option value="bottom-right">右下</option>
+                          <option value="center">居中</option>
+                        </select>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">水印在图片上的位置，推荐：bottom-right（右下角，不遮挡主要内容）</p>
+                      </div>
+                      <div class="field">
+                        <label>透明度</label>
+                        <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.opacity" min="0" max="1" step="0.1">
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">水印的透明度，范围：0-1（0完全透明，1完全不透明），推荐：0.3-0.7（半透明效果）</p>
+                      </div>
+                    </template>
+                    
+                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'adjust'">
+                      <div class="three fields">
+                        <div class="field">
+                          <label>亮度</label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.brightness" placeholder="亮度">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">调整图片亮度，范围：-100到100，0为原始亮度，推荐：-20到20（负数变暗，正数变亮）</p>
+                        </div>
+                        <div class="field">
+                          <label>对比度</label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.contrast" placeholder="对比度">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">调整图片对比度，范围：-100到100，0为原始对比度，推荐：-20到20（负数降低，正数增强）</p>
+                        </div>
+                        <div class="field">
+                          <label>饱和度</label>
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.saturation" placeholder="饱和度">
+                          <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">调整图片色彩饱和度，范围：-100到100，0为原始饱和度，推荐：-50到50（负数变灰，正数更鲜艳）</p>
+                        </div>
+                      </div>
+                    </template>
+                    
+                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'filter'">
+                      <div class="field">
+                        <label>滤镜类型</label>
+                        <select v-model="state.operationChain[state.selectedOperationIndex].params.filterType" class="ui dropdown">
+                          <option value="blur">模糊</option>
+                          <option value="sharpen">锐化</option>
+                          <option value="emboss">浮雕</option>
+                        </select>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">选择滤镜效果，模糊适合柔化图片，锐化适合增强细节，浮雕适合艺术效果</p>
+                      </div>
+                      <div class="field">
+                        <label>强度</label>
+                        <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.intensity" min="0" max="10" step="0.1">
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">滤镜效果的强度，范围：0-10，推荐：1-3（数值越大效果越明显）</p>
+                      </div>
+                    </template>
+                    
+                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'effects'">
+                      <div class="field">
+                        <label>效果类型</label>
+                        <select v-model="state.operationChain[state.selectedOperationIndex].params.effectType" class="ui dropdown">
+                          <option value="grayscale">黑白化</option>
+                          <option value="negate">负片</option>
+                          <option value="sepia">怀旧</option>
+                          <option value="blur">模糊</option>
+                          <option value="gaussian-blur">高斯模糊</option>
+                          <option value="motion-blur">运动模糊</option>
+                          <option value="sharpen">锐化</option>
+                          <option value="unsharp">非锐化遮罩</option>
+                          <option value="charcoal">炭笔画</option>
+                          <option value="oil-painting">油画</option>
+                          <option value="sketch">素描</option>
+                          <option value="emboss">浮雕</option>
+                          <option value="edge">边缘检测</option>
+                          <option value="posterize">海报化</option>
+                          <option value="pixelate">像素化</option>
+                          <option value="mosaic">马赛克</option>
+                          <option value="brightness">亮度</option>
+                          <option value="contrast">对比度</option>
+                          <option value="saturation">饱和度</option>
+                          <option value="hue">色相</option>
+                          <option value="colorize">着色</option>
+                          <option value="tint">色调</option>
+                          <option value="noise">噪点</option>
+                          <option value="despeckle">去噪点</option>
+                          <option value="vignette">晕影</option>
+                          <option value="solarize">曝光</option>
+                          <option value="swirl">漩涡</option>
+                          <option value="wave">波浪</option>
+                          <option value="implode">内爆</option>
+                          <option value="explode">爆炸</option>
+                          <option value="spread">扩散</option>
+                          <option value="normalize">标准化</option>
+                          <option value="equalize">均衡化</option>
+                          <option value="gamma">伽马校正</option>
+                          <option value="threshold">阈值化</option>
+                          <option value="quantize">量化</option>
+                        </select>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">选择要应用的图片效果，包含30多种效果（黑白化、负片、怀旧、油画、素描等），不同效果需要不同的参数</p>
+                      </div>
+                      
+                      <!-- 根据效果类型显示不同参数 -->
+                      <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType">
+                        <!-- 需要 radius 和 sigma 的效果 -->
+                        <template v-if="needsRadius(state.operationChain[state.selectedOperationIndex].params.effectType) && needsSigma(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                          <div class="two fields">
+                            <div class="field">
+                              <label>半径</label>
+                              <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.radius" placeholder="半径">
+                              <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">效果的影响半径（像素），范围：1-100，推荐：5-20（数值越大影响范围越广）</p>
+                            </div>
+                            <div class="field">
+                              <label>Sigma</label>
+                              <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.sigma" placeholder="Sigma">
+                              <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">高斯模糊的标准差，范围：0.1-10，推荐：1-5（数值越大模糊程度越高）</p>
+                            </div>
+                          </div>
+                        </template>
+                        
+                        <!-- 只需要 radius 的效果 -->
+                        <template v-else-if="needsRadius(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                          <div class="field">
+                            <label>半径</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.radius" placeholder="半径">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">效果的影响半径（像素），范围：1-100，推荐：5-20（数值越大影响范围越广）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 intensity 的效果 -->
+                        <template v-if="needsIntensity(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                          <div class="field">
+                            <label>强度</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.intensity" placeholder="强度">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">效果的强度，范围：0-100，推荐：20-80（数值越大效果越明显）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 value 的效果 -->
+                        <template v-if="needsValue(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                          <div class="field">
+                            <label>数值</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.value" placeholder="数值">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">效果的数值参数，范围：-100到100，推荐：-50到50（根据效果类型调整）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 size 的效果 (mosaic, pixelate) -->
+                        <template v-if="needsSize(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                          <div class="field">
+                            <label>大小</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.size" placeholder="大小">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">像素块或马赛克的大小（像素），范围：2-50，推荐：5-20（数值越大块越大）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 color 的效果 -->
+                        <template v-if="needsColor(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                          <div class="field">
+                            <label>颜色</label>
+                            <input type="color" v-model="state.operationChain[state.selectedOperationIndex].params.color" placeholder="颜色">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">效果使用的颜色，点击选择或输入十六进制颜色值（如 #FF0000）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 angle 的效果 -->
+                        <template v-if="needsAngle(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                          <div class="field">
+                            <label>角度</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.angle" placeholder="角度">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">效果的角度（度），范围：-360到360，推荐：0-180（根据效果类型调整）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 amount 的效果 -->
+                        <template v-if="needsAmount(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                          <div class="field">
+                            <label>数量</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.amount" placeholder="数量" step="0.1">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">效果的数量参数，范围：0-10，推荐：0.5-5（根据效果类型调整，数值越大效果越强）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 threshold 的效果 -->
+                        <template v-if="needsThreshold(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                          <div class="field">
+                            <label>阈值</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.threshold" placeholder="阈值">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">效果的阈值，范围：0-255，推荐：128（用于二值化处理，小于阈值为黑，大于为白）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 amplitude 和 wavelength 的效果 (wave) -->
+                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'wave'">
+                          <div class="two fields">
+                            <div class="field">
+                              <label>振幅</label>
+                              <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.amplitude" placeholder="振幅">
+                              <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">波浪的振幅（像素），范围：1-100，推荐：10-50（数值越大波浪起伏越大）</p>
+                            </div>
+                            <div class="field">
+                              <label>波长</label>
+                              <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.wavelength" placeholder="波长">
+                              <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">波浪的波长（像素），范围：10-500，推荐：50-200（数值越大波浪越宽）</p>
+                            </div>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 levels 的效果 (posterize) -->
+                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'posterize'">
+                          <div class="field">
+                            <label>色阶数</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.levels" placeholder="色阶数">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">颜色量化后的色阶数量，范围：2-256，推荐：4-16（数值越小颜色越少，海报效果越明显）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 colors 的效果 (quantize) -->
+                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'quantize'">
+                          <div class="field">
+                            <label>颜色数</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.colors" placeholder="颜色数">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">量化后的颜色数量，范围：2-256，推荐：8-64（数值越小颜色越少，简化效果越明显）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 method 和 intensity 的效果 (grayscale) -->
+                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'grayscale'">
+                          <div class="field">
+                            <label>方法</label>
+                            <select v-model="state.operationChain[state.selectedOperationIndex].params.method" class="ui dropdown">
+                              <option value="Rec601Luma">Rec601Luma</option>
+                              <option value="Rec709Luma">Rec709Luma</option>
+                              <option value="average">平均值</option>
+                              <option value="luminance">亮度</option>
+                              <option value="desaturate">去饱和</option>
+                            </select>
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">黑白化转换方法，推荐：Rec709Luma（现代标准）或 average（简单平均）</p>
+                          </div>
+                          <div class="field">
+                            <label>强度 (%)</label>
+                            <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.intensity" min="0" max="100" placeholder="强度">
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">黑白化强度，范围：0-100，推荐：100（完全黑白化）</p>
+                          </div>
+                        </template>
+                        
+                        <!-- 需要 noiseType 的效果 (noise) -->
+                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'noise'">
+                          <div class="field">
+                            <label>噪点类型</label>
+                            <select v-model="state.operationChain[state.selectedOperationIndex].params.noiseType" class="ui dropdown">
+                              <option value="Uniform">均匀</option>
+                              <option value="Gaussian">高斯</option>
+                              <option value="Multiplicative">乘法</option>
+                              <option value="Impulse">脉冲</option>
+                              <option value="Laplacian">拉普拉斯</option>
+                              <option value="Poisson">泊松</option>
+                            </select>
+                            <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">噪点的分布类型，推荐：Gaussian（高斯，自然）或 Uniform（均匀，随机）</p>
+                          </div>
+                        </template>
+                      </template>
                     </template>
                   </div>
                 </div>
               </div>
-
-              <div v-if="state.effectsList.length > 0" style="margin-top: 1rem;">
-                <button class="ui small primary button" :class="{ loading: state.loading.effects }" @click="handleEffects" :disabled="!state.effectsCurrentFilename || state.loading.effects" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                  <i class="magic icon"></i> 应用效果
-                </button>
-                <button class="ui small button" @click="clearEffects" style="font-size: 0.85em; padding: 0.5em 0.75em; margin-left: 0.5rem;">
-                  清空效果列表
-                </button>
+              <div v-else class="ui message">
+                <p>还没有添加任何操作，请点击上方按钮添加操作</p>
               </div>
             </div>
 
-            <!-- 结果区域 -->
-            <div v-if="state.effectsResultImage" class="ui segment compact-segment" style="margin-top: 1rem;">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">对比预览</h3>
-              <div class="ui two column grid" style="margin: 0;">
-                <div class="column" style="padding: 0.5rem;">
-                  <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <strong style="font-size: 0.9em; color: #666;">原始图片</strong>
-                  </div>
-                  <img v-if="state.effectsCurrentImage" :src="state.effectsCurrentImage" class="image-preview" alt="原始图片" style="max-height: 400px;">
+            <!-- 实时参数预览 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">请求参数预览</h3>
+              <pre v-if="getRequestPayload()" style="background: #f5f5f5; padding: 0.75rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em;">{{ JSON.stringify(getRequestPayload(), null, 2) }}</pre>
+              <p v-else style="color: #999; font-size: 0.85em;">请先上传图片并添加操作</p>
+            </div>
+
+            <!-- 处理按钮和结果 -->
+            <div class="ui segment compact-segment">
+              <button class="ui primary button" :class="{ loading: state.loading.chainProcess }" @click="handleChainProcess" :disabled="!state.chainProcessFilename || state.operationChain.length === 0 || state.loading.chainProcess">
+                <i class="play icon"></i> 执行链式处理
+              </button>
+              <button v-if="state.chainProcessResultImage" class="ui button" @click="useChainProcessAsSource">
+                <i class="refresh icon"></i> 使用结果作为新源
+              </button>
+              
+              <div v-if="state.chainProcessResultImage" class="image-comparison-container" style="margin-top: 1rem;">
+                <div class="image-comparison-item">
+                  <h4>原图</h4>
+                  <img :src="state.chainProcessImage" alt="原图" style="max-width: 100%; border-radius: 6px;">
                 </div>
-                <div class="column" style="padding: 0.5rem;">
-                  <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <strong style="font-size: 0.9em; color: #666;">处理结果</strong>
-                  </div>
-                  <img :src="state.effectsResultImage" class="image-preview" alt="处理结果" style="max-height: 400px;">
-                  <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
-                    <a :href="state.effectsResultImage" :download="state.effectsResultFilename" class="ui small primary button" style="flex: 1;">
+                <div class="image-comparison-item">
+                  <h4>处理后</h4>
+                  <img :src="state.chainProcessResultImage" alt="处理后" style="max-width: 100%; border-radius: 6px;">
+                  <div style="margin-top: 0.75rem; text-align: center;">
+                    <a :href="state.chainProcessResultImage" :download="state.chainProcessResultFilename" class="ui primary button">
                       <i class="download icon"></i> 下载图片
                     </a>
-                    <button class="ui small button" @click="useEffectsAsSource" style="flex: 1;">
-                      作为新源图片
-                    </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
 
       </main>
 

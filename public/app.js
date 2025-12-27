@@ -32,17 +32,12 @@ function initApp() {
         imagemagickStatus: null,
         imageUrl: '',
         analyzeImageUrl: '',
+        chainProcessImageUrl: '',
         watermarkImageUrl: '',
         effectsImageUrl: '',
-        shapeCropImageUrl: '',
         currentImage: null,
         currentFilename: null,
         imageInfo: null,
-        shapeCropCurrentImage: null,
-        shapeCropCurrentFilename: null,
-        shapeCropImageInfo: null,
-        shapeCropResultImage: null,
-        shapeCropResultFilename: null,
         watermarkCurrentImage: null,
         watermarkCurrentFilename: null,
         watermarkImageInfo: null,
@@ -121,28 +116,39 @@ function initApp() {
           watermark: false,
           effectsUrlUpload: false,
           effects: false,
-          shapeCropUrlUpload: false,
-          shapeCrop: false
+          chainProcessUrlUpload: false,
+          chainProcess: false
         },
-        shapeCropOptions: {
-          shape: 'circle',
-          x: null,
-          y: null,
-          width: 200,
-          height: 200,
-          backgroundColor: 'transparent'
-        }
+        // 链式处理相关状态
+        chainProcessImage: null,
+        chainProcessFilename: null,
+        chainProcessImageInfo: null,
+        chainProcessResultImage: null,
+        chainProcessResultFilename: null,
+        operationChain: [], // 操作链数组
+        selectedOperationType: '', // 选中的操作类型
+        selectedOperationIndex: 0 // 当前选中的操作索引（用于tab切换）
       });
 
       // 菜单项配置
+      // 操作类型定义
+      const operationTypes = [
+        { value: 'resize', label: '调整大小', icon: 'expand', description: '缩放图片到指定尺寸，可以保持原始宽高比或强制拉伸到目标尺寸' },
+        { value: 'crop', label: '矩形裁剪', icon: 'crop', description: '从图片中裁剪出一个矩形区域，需要指定起始坐标和裁剪区域的宽高' },
+        { value: 'shapeCrop', label: '形状裁剪', icon: 'circle', description: '按照指定形状（圆形、椭圆、星形等）裁剪图片，保留形状内的内容' },
+        { value: 'rotate', label: '旋转', icon: 'redo', description: '按指定角度旋转图片，可以设置旋转后的背景颜色' },
+        { value: 'convert', label: '格式转换', icon: 'exchange', description: '将图片转换为其他格式（JPG、PNG、GIF、WEBP、BMP等），可设置输出质量' },
+        { value: 'watermark', label: '水印', icon: 'tint', description: '在图片上添加文字或图片水印，可设置位置和透明度' },
+        { value: 'adjust', label: '颜色调整', icon: 'adjust', description: '调整图片的亮度、对比度和饱和度，用于改善图片的视觉效果' },
+        { value: 'filter', label: '滤镜', icon: 'filter', description: '应用模糊、锐化、浮雕等滤镜效果，可调整强度' },
+        { value: 'effects', label: '效果', icon: 'magic', description: '应用各种图片效果，如黑白化、负片、怀旧、油画、素描等30多种效果' }
+      ];
+
       const menuItems = [
         { id: 'home', name: '首页', icon: 'home' },
         { id: 'config', name: '服务配置', icon: 'cog' },
         { id: 'analyze', name: '图片分析', icon: 'search' },
-        { id: 'process', name: '图像处理', icon: 'wrench' },
-        { id: 'shape-crop', name: '图片裁剪', icon: 'cut' },
-        { id: 'watermark', name: '水印', icon: 'tint' },
-        { id: 'effects', name: '图片裂变', icon: 'magic' }
+        { id: 'chain-process', name: '链式处理', icon: 'sitemap' }
       ];
 
       // 调试标签配置
@@ -385,12 +391,13 @@ function initApp() {
       // 使用分析图片进行处理
       function useAnalyzeImageForProcess() {
         if (state.analyzeFilename && state.analyzeImage) {
-          state.currentFilename = state.analyzeFilename;
-          state.currentImage = state.analyzeImage;
-          state.imageInfo = state.analyzeImageInfo;
-          // 切换到处理页面
-          state.currentView = 'process';
-          addDebugLog('已切换到图像处理页面', 'info');
+          state.chainProcessFilename = state.analyzeFilename;
+          state.chainProcessImage = state.analyzeImage;
+          state.chainProcessImageInfo = state.analyzeImageInfo;
+          // 切换到链式处理页面
+          state.currentView = 'chain-process';
+          addDebugLog('已切换到链式处理页面', 'info');
+          loadChainProcessImageInfo();
         }
       }
 
@@ -718,122 +725,7 @@ function initApp() {
         }
       }
 
-      // ========== 图片形状裁剪功能 ==========
-      
-      // 处理形状裁剪 URL 上传
-      async function handleShapeCropUrlUpload() {
-        if (!state.shapeCropImageUrl || !state.shapeCropImageUrl.trim()) {
-          addDebugLog('请输入有效的图片 URL', 'error');
-          return;
-        }
-
-        const url = state.shapeCropImageUrl.trim();
-        state.loading.shapeCropUrlUpload = true;
-        addDebugLog(`开始从 URL 下载: ${url}`, 'info');
-
-        try {
-          const { data } = await axios.post(`${BASE_URL}/api/upload`, {
-            url: url
-          }, {
-            headers: { 'Content-Type': 'application/json' }
-          });
-
-          if (data.success) {
-            state.shapeCropCurrentFilename = data.filename;
-            state.shapeCropCurrentImage = `${BASE_URL}${data.path}`;
-            addDebugLog(`下载成功: ${data.originalName}`, 'success');
-            
-            state.shapeCropImageUrl = '';
-            await loadShapeCropImageInfo();
-          } else {
-            addDebugLog(`下载失败: ${data.error}`, 'error');
-          }
-        } catch (e) {
-          addDebugLog(`下载错误: ${e.response?.data?.error || e.message}`, 'error');
-        } finally {
-          state.loading.shapeCropUrlUpload = false;
-        }
-      }
-
-      async function loadShapeCropImageInfo() {
-        if (!state.shapeCropCurrentFilename) return;
-
-        try {
-          const { data } = await axios.post(`${BASE_URL}/api/info`, {
-            filename: state.shapeCropCurrentFilename
-          });
-
-          if (data.success) {
-            state.shapeCropImageInfo = data.info;
-            // 自动设置默认尺寸为图片尺寸的一半
-            if (!state.shapeCropOptions.x && !state.shapeCropOptions.y) {
-              state.shapeCropOptions.width = Math.floor(data.info.width / 2);
-              state.shapeCropOptions.height = Math.floor(data.info.height / 2);
-            }
-            addDebugLog(`图片信息: ${data.info.width} × ${data.info.height} px`, 'info');
-          }
-        } catch (e) {
-          addDebugLog(`获取图片信息失败: ${e.response?.data?.error || e.message}`, 'error');
-        }
-      }
-
-      // 处理形状裁剪
-      async function handleShapeCrop() {
-        if (!state.shapeCropCurrentFilename) {
-          addDebugLog('请先上传图片', 'error');
-          return;
-        }
-
-        const { shape, x, y, width, height, backgroundColor } = state.shapeCropOptions;
-        if (!width || !height) {
-          addDebugLog('请输入宽度和高度', 'error');
-          return;
-        }
-
-        state.loading.shapeCrop = true;
-        addDebugLog(`开始形状裁剪: ${shape}`, 'info');
-
-        try {
-          const { data } = await axios.post(`${BASE_URL}/api/shape-crop`, {
-            filename: state.shapeCropCurrentFilename,
-            shape: shape,
-            x: x,
-            y: y,
-            width: parseInt(width),
-            height: parseInt(height),
-            backgroundColor: backgroundColor
-          });
-
-          if (data.success) {
-            state.shapeCropResultImage = `${BASE_URL}${data.path}`;
-            state.shapeCropResultFilename = data.outputFile;
-            addDebugLog(`形状裁剪成功: ${shape}`, 'success');
-            if (data.command) {
-              addDebugLog(`执行命令: ${data.command}`, 'info');
-            }
-          } else {
-            addDebugLog(`形状裁剪失败: ${data.error}`, 'error');
-          }
-        } catch (e) {
-          addDebugLog(`形状裁剪错误: ${e.response?.data?.error || e.message}`, 'error');
-        } finally {
-          state.loading.shapeCrop = false;
-        }
-      }
-
-      // 使用形状裁剪结果作为新源图片
-      function useShapeCropAsSource() {
-        if (state.shapeCropResultImage && state.shapeCropResultFilename) {
-          state.shapeCropCurrentImage = state.shapeCropResultImage;
-          state.shapeCropCurrentFilename = state.shapeCropResultFilename;
-          state.shapeCropResultImage = null;
-          state.shapeCropResultFilename = null;
-          addDebugLog('已设置为新的源图片', 'info');
-          loadShapeCropImageInfo();
-        }
-      }
-
-      // ========== 图片裂变功能 ==========
+// ========== 图片裂变功能 ==========
       
       // 处理效果 URL 上传
       async function handleEffectsUrlUpload() {
@@ -1417,6 +1309,237 @@ function initApp() {
         }
       }
 
+      // ========== 链式处理相关函数 ==========
+      
+      // URL 上传处理
+      async function handleChainProcessUrlUpload() {
+        if (!state.chainProcessImageUrl || !state.chainProcessImageUrl.trim()) {
+          addDebugLog('请输入有效的图片 URL', 'error');
+          return;
+        }
+
+        const url = state.chainProcessImageUrl.trim();
+        state.loading.chainProcessUrlUpload = true;
+        addDebugLog(`开始下载图片: ${url}`, 'info');
+        
+        try {
+          const { data } = await axios.post(`${BASE_URL}/api/upload`, { url });
+          if (data.success) {
+            state.chainProcessImage = `${BASE_URL}${data.path}`;
+            state.chainProcessFilename = data.filename;
+            addDebugLog('图片下载成功', 'success');
+            state.chainProcessImageUrl = '';
+            loadChainProcessImageInfo();
+          } else {
+            addDebugLog(`下载失败: ${data.error}`, 'error');
+          }
+        } catch (e) {
+          addDebugLog(`下载错误: ${e.response?.data?.error || e.message}`, 'error');
+        } finally {
+          state.loading.chainProcessUrlUpload = false;
+        }
+      }
+      
+      // 加载图片信息
+      async function loadChainProcessImageInfo() {
+        if (!state.chainProcessFilename) return;
+        
+        try {
+          const { data } = await axios.post(`${BASE_URL}/api/info`, {
+            filename: state.chainProcessFilename
+          });
+          if (data.success) {
+            state.chainProcessImageInfo = data.info;
+          }
+        } catch (e) {
+          console.error('加载图片信息失败:', e);
+        }
+      }
+      
+      // 添加操作
+      function addOperation(type) {
+        const operation = {
+          id: Date.now(),
+          type: type,
+          params: getDefaultParams(type)
+        };
+        state.operationChain.push(operation);
+        addDebugLog(`添加操作: ${getOperationLabel(type)}`, 'info');
+      }
+      
+      // 添加选中的操作
+      function addSelectedOperation() {
+        if (!state.selectedOperationType) {
+          addDebugLog('请先选择操作类型', 'error');
+          return;
+        }
+        addOperation(state.selectedOperationType);
+        state.selectedOperationType = ''; // 添加后清空选择
+        // 切换到新添加的操作
+        state.selectedOperationIndex = state.operationChain.length - 1;
+      }
+      
+      // 切换操作tab
+      function selectOperation(index) {
+        if (index >= 0 && index < state.operationChain.length) {
+          state.selectedOperationIndex = index;
+        }
+      }
+      
+      // 删除操作时调整选中索引
+      function removeOperationWithIndex(index) {
+        removeOperation(index);
+        // 如果删除的是当前选中的，调整索引
+        if (index === state.selectedOperationIndex) {
+          if (state.operationChain.length > 0) {
+            state.selectedOperationIndex = Math.min(index, state.operationChain.length - 1);
+          } else {
+            state.selectedOperationIndex = 0;
+          }
+        } else if (index < state.selectedOperationIndex) {
+          state.selectedOperationIndex--;
+        }
+      }
+      
+      // 删除操作
+      function removeOperation(index) {
+        const op = state.operationChain[index];
+        state.operationChain.splice(index, 1);
+        addDebugLog(`删除操作: ${getOperationLabel(op.type)}`, 'info');
+      }
+      
+      // 上移操作
+      function moveOperationUp(index) {
+        if (index > 0) {
+          const temp = state.operationChain[index];
+          state.operationChain[index] = state.operationChain[index - 1];
+          state.operationChain[index - 1] = temp;
+        }
+      }
+      
+      // 下移操作
+      function moveOperationDown(index) {
+        if (index < state.operationChain.length - 1) {
+          const temp = state.operationChain[index];
+          state.operationChain[index] = state.operationChain[index + 1];
+          state.operationChain[index + 1] = temp;
+        }
+      }
+      
+      // 获取操作标签
+      function getOperationLabel(type) {
+        const op = operationTypes.find(o => o.value === type);
+        return op ? op.label : type;
+      }
+      
+      function getOperationDescription(type) {
+        const op = operationTypes.find(o => o.value === type);
+        return op ? op.description : '';
+      }
+      
+      // 获取默认参数
+      function getDefaultParams(type) {
+        const defaults = {
+          resize: { width: 800, height: 600, maintainAspectRatio: true, quality: 90 },
+          crop: { x: 0, y: 0, width: 500, height: 500 },
+          shapeCrop: { shape: 'circle', x: null, y: null, width: 200, height: 200, backgroundColor: 'transparent' },
+          rotate: { degrees: 90, backgroundColor: '#000000' },
+          convert: { format: 'jpg', quality: 90 },
+          watermark: { type: 'text', text: '水印', fontSize: 24, color: '#FFFFFF', position: 'bottom-right', opacity: 0.5 },
+          adjust: { brightness: 0, contrast: 0, saturation: 0 },
+          filter: { filterType: 'blur', intensity: 1 },
+          effects: { effectType: 'grayscale', method: 'Rec601Luma', intensity: 100 }
+        };
+        return defaults[type] || {};
+      }
+      
+      // 获取操作参数（用于显示）
+      function getOperationParams(operation) {
+        return JSON.stringify(operation.params, null, 2);
+      }
+      
+      // 更新操作参数
+      function updateOperationParams(index, key, value) {
+        if (state.operationChain[index]) {
+          if (key.includes('.')) {
+            const keys = key.split('.');
+            let obj = state.operationChain[index].params;
+            for (let i = 0; i < keys.length - 1; i++) {
+              if (!obj[keys[i]]) obj[keys[i]] = {};
+              obj = obj[keys[i]];
+            }
+            obj[keys[keys.length - 1]] = value;
+          } else {
+            state.operationChain[index].params[key] = value;
+          }
+        }
+      }
+      
+      // 获取请求负载（实时预览）
+      function getRequestPayload() {
+        if (!state.chainProcessFilename) return null;
+        return {
+          filename: state.chainProcessFilename,
+          operations: state.operationChain.map(op => ({
+            type: op.type,
+            params: op.params
+          }))
+        };
+      }
+      
+      // 执行链式处理
+      async function handleChainProcess() {
+        if (!state.chainProcessFilename) {
+          addDebugLog('请先上传图片', 'error');
+          return;
+        }
+        
+        if (state.operationChain.length === 0) {
+          addDebugLog('请至少添加一个操作', 'error');
+          return;
+        }
+        
+        state.loading.chainProcess = true;
+        addDebugLog('开始链式处理...', 'info');
+        
+        try {
+          const payload = getRequestPayload();
+          addDebugLog(`请求参数: ${JSON.stringify(payload, null, 2)}`, 'info');
+          
+          const { data } = await axios.post(`${BASE_URL}/api/process`, payload);
+          
+          if (data.success) {
+            state.chainProcessResultImage = `${BASE_URL}${data.path}`;
+            state.chainProcessResultFilename = data.outputFile;
+            addDebugLog('链式处理成功', 'success');
+            if (data.commands) {
+              data.commands.forEach((cmd, i) => {
+                addDebugLog(`命令 ${i + 1}: ${cmd}`, 'info');
+              });
+            }
+          } else {
+            addDebugLog(`处理失败: ${data.error}`, 'error');
+          }
+        } catch (e) {
+          addDebugLog(`处理错误: ${e.response?.data?.error || e.message}`, 'error');
+        } finally {
+          state.loading.chainProcess = false;
+        }
+      }
+      
+      // 使用处理结果作为新源
+      function useChainProcessAsSource() {
+        if (state.chainProcessResultImage && state.chainProcessResultFilename) {
+          state.chainProcessImage = state.chainProcessResultImage;
+          state.chainProcessFilename = state.chainProcessResultFilename;
+          state.chainProcessResultImage = null;
+          state.chainProcessResultFilename = null;
+          state.operationChain = [];
+          addDebugLog('已设置为新的源图片', 'info');
+          loadChainProcessImageInfo();
+        }
+      }
+      
       // 使用效果结果作为新源图片
       function useEffectsAsSource() {
         if (state.effectsResultImage && state.effectsResultFilename) {
@@ -1440,6 +1563,7 @@ function initApp() {
         state,
         watermarkImageInput,
         menuItems,
+        operationTypes,
         debugTabs,
         filteredDebugLogs,
         switchView,
@@ -1498,10 +1622,23 @@ function initApp() {
         getParamDescription,
         handleEffects,
         useEffectsAsSource,
-        handleShapeCropUrlUpload,
-        loadShapeCropImageInfo,
-        handleShapeCrop,
-        useShapeCropAsSource
+        // 链式处理相关函数
+        handleChainProcessUrlUpload,
+        loadChainProcessImageInfo,
+        addOperation,
+        addSelectedOperation,
+        selectOperation,
+        removeOperation,
+        removeOperationWithIndex,
+        moveOperationUp,
+        moveOperationDown,
+        getOperationLabel,
+        getOperationDescription,
+        getOperationParams,
+        updateOperationParams,
+        getRequestPayload,
+        handleChainProcess,
+        useChainProcessAsSource
       };
     }
   }).mount('#app');
