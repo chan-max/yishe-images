@@ -2,13 +2,8 @@ version: '3.8'
 
 services:
   yishe-images:
-    # 方式一：使用 Docker Hub 镜像（推荐，如果已发布到 Docker Hub）
-    # image: 1sdesign/yishe-images:latest
-    
-    # 方式二：从 Dockerfile 构建（本地开发使用）
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # 使用 Docker Hub 镜像（发布后使用此配置）
+    image: 1sdesign/yishe-images:latest
     container_name: yishe-images
     ports:
       # 格式：宿主机端口:容器端口

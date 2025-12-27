@@ -184,10 +184,19 @@ docker-compose build yishe-images
 docker run -d --name yishe-images -p 1513:1513 -v $(pwd)/uploads:/app/uploads -v $(pwd)/output:/app/output -v $(pwd)/template:/app/template -e NODE_ENV=production -e PORT=1513 --restart unless-stopped --memory="2g" --cpus="2" --health-cmd="node -e \"require('http').get('http://localhost:1513/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" --health-interval=30s --health-timeout=3s --health-start-period=5s --health-retries=3 yishe-images:latest
 ```
 
-**命令（Windows CMD）：**
+**命令（Windows CMD - 简化版本，推荐）：**
+```bash
+docker run -d --name yishe-images -p 1513:1513 -v %cd%\uploads:/app/uploads -v %cd%\output:/app/output -v %cd%\template:/app/template -e NODE_ENV=production -e PORT=1513 --restart unless-stopped --memory="2g" --cpus="2" yishe-images:latest
+```
+
+**命令（Windows CMD - 完整版本，含健康检查）：**
 ```bash
 docker run -d --name yishe-images -p 1513:1513 -v %cd%\uploads:/app/uploads -v %cd%\output:/app/output -v %cd%\template:/app/template -e NODE_ENV=production -e PORT=1513 --restart unless-stopped --memory="2g" --cpus="2" --health-cmd="node -e \"require('http').get('http://localhost:1513/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" --health-interval=30s --health-timeout=3s --health-start-period=5s --health-retries=3 yishe-images:latest
 ```
+
+**注意：** 
+- Windows CMD 中健康检查命令的引号转义可能有问题，如果执行失败，建议使用简化版本
+- 或者使用 PowerShell 版本（见下方），PowerShell 对引号处理更可靠
 
 **命令详解：**
 - `docker run`: 运行容器命令
@@ -216,24 +225,56 @@ docker run -d --name yishe-images -p 1513:1513 -v %cd%\uploads:/app/uploads -v %
 - `yishe-images:latest`: 使用的镜像名称和标签
   - 如果使用 Docker Hub 镜像，使用：`1sdesign/yishe-images:latest`
 
-**命令（Windows PowerShell - 基础版本）：**
+**命令（Windows PowerShell - 简化版本，推荐）：**
 ```powershell
-docker run -d --name yishe-images -p 1513:1513 -v ${PWD}/uploads:/app/uploads -v ${PWD}/output:/app/output -v ${PWD}/template:/app/template -e NODE_ENV=production -e PORT=1513 --restart unless-stopped 1sdesign/yishe-images:latest
+docker run -d --name yishe-images -p 1513:1513 -v ${PWD}/uploads:/app/uploads -v ${PWD}/output:/app/output -v ${PWD}/template:/app/template -e NODE_ENV=production -e PORT=1513 --restart unless-stopped --memory="2g" --cpus="2" yishe-images:latest
 ```
 
-**命令（Windows PowerShell - 完整版本，含资源限制和健康检查）：**
+**命令（Windows PowerShell - 完整版本，含健康检查）：**
 ```powershell
-docker run -d --name yishe-images -p 1513:1513 -v ${PWD}/uploads:/app/uploads -v ${PWD}/output:/app/output -v ${PWD}/template:/app/template -e NODE_ENV=production -e PORT=1513 --restart unless-stopped --memory="2g" --cpus="2" --health-cmd="node -e \"require('http').get('http://localhost:1513/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" --health-interval=30s --health-timeout=3s --health-start-period=5s --health-retries=3 1sdesign/yishe-images:latest
+docker run -d --name yishe-images -p 1513:1513 -v ${PWD}/uploads:/app/uploads -v ${PWD}/output:/app/output -v ${PWD}/template:/app/template -e NODE_ENV=production -e PORT=1513 --restart unless-stopped --memory="2g" --cpus="2" --health-cmd="node -e \"require('http').get('http://localhost:1513/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" --health-interval=30s --health-timeout=3s --health-start-period=5s --health-retries=3 yishe-images:latest
 ```
 
 **注意：**
 - PowerShell 中使用 `${PWD}` 而不是 `$(pwd)`
-- 如果使用本地构建的镜像，将 `1sdesign/yishe-images:latest` 改为 `yishe-images:latest`
+- 如果使用 Docker Hub 镜像，将 `yishe-images:latest` 改为 `1sdesign/yishe-images:latest`
 - 如果镜像不存在，需要先构建：`docker build -t yishe-images:latest .`
+- PowerShell 对引号处理更可靠，推荐使用 PowerShell 版本
 
 #### 方式二：使用 Docker Compose 启动（推荐）
 
-**命令：**
+**从 Docker Hub 使用（推荐）：**
+
+如果镜像已发布到 Docker Hub，其他人可以直接使用：
+
+1. **修改 docker-compose.yml**，将 `build` 部分注释，启用 `image`：
+   ```yaml
+   services:
+     yishe-images:
+       # 使用 Docker Hub 镜像
+       image: 1sdesign/yishe-images:latest
+       # build:
+       #   context: .
+       #   dockerfile: Dockerfile
+   ```
+
+2. **或者使用专用配置文件**（已提供 `docker-compose.hub.yml`）：
+   ```bash
+   docker-compose -f docker-compose.hub.yml up -d
+   ```
+
+3. **直接启动**：
+   ```bash
+   docker-compose up -d
+   ```
+   - 会自动从 Docker Hub 拉取镜像
+   - 无需 Dockerfile 和源代码
+   - 无需构建，直接运行
+
+**本地开发使用：**
+
+如果要在本地构建和开发：
+
 ```bash
 docker-compose up -d
 ```
@@ -242,7 +283,8 @@ docker-compose up -d
 - `docker-compose up`: 启动服务
 - `-d`: 后台运行（detached mode）
 - 会自动读取当前目录下的 `docker-compose.yml` 配置文件
-- 如果镜像不存在，会自动构建
+- 如果配置了 `build`，会自动构建镜像
+- 如果配置了 `image`，会从 Docker Hub 拉取镜像
 
 **其他常用命令：**
 ```bash
