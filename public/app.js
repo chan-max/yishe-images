@@ -127,7 +127,25 @@ function initApp() {
         chainProcessResultFilename: null,
         operationChain: [], // 操作链数组
         selectedOperationType: '', // 选中的操作类型
-        selectedOperationIndex: 0 // 当前选中的操作索引（用于tab切换）
+        selectedOperationIndex: 0, // 当前选中的操作索引（用于tab切换）
+        // 文件管理相关状态
+        filesCurrentDirectory: 'uploads', // 当前查看的目录 (uploads 或 output)
+        filesList: {
+          uploads: [],
+          output: []
+        },
+        filesLoading: {
+          uploads: false,
+          output: false
+        },
+        filesStats: {
+          uploads: { totalSize: 0, totalSizeFormatted: '0 B', count: 0 },
+          output: { totalSize: 0, totalSizeFormatted: '0 B', count: 0 }
+        },
+        // 文件预览相关状态
+        filePreviewVisible: false,
+        filePreviewFile: null,
+        imageLoadError: false
       });
 
       // 菜单项配置
@@ -148,7 +166,8 @@ function initApp() {
         { id: 'home', name: '首页', icon: 'home' },
         { id: 'config', name: '服务配置', icon: 'cog' },
         { id: 'analyze', name: '图片分析', icon: 'search' },
-        { id: 'chain-process', name: '链式处理', icon: 'sitemap' }
+        { id: 'chain-process', name: '链式处理', icon: 'sitemap' },
+        { id: 'files', name: '文件管理', icon: 'folder' }
       ];
 
       // 调试标签配置
@@ -162,6 +181,10 @@ function initApp() {
       // 切换视图
       function switchView(viewId) {
         state.currentView = viewId;
+        // 如果切换到文件管理视图，自动加载当前目录的文件列表
+        if (viewId === 'files') {
+          loadFilesList(state.filesCurrentDirectory);
+        }
       }
 
       // 添加调试日志
@@ -1437,6 +1460,115 @@ function initApp() {
         return op ? op.description : '';
       }
       
+      // 文件管理相关函数
+      async function loadFilesList(directory) {
+        if (!directory || !['uploads', 'output'].includes(directory)) {
+          return;
+        }
+        
+        state.filesLoading[directory] = true;
+        addDebugLog(`加载 ${directory} 目录文件列表...`, 'info');
+        
+        try {
+          const { data } = await axios.get(`${BASE_URL}/api/files/list`, {
+            params: { directory }
+          });
+          
+          if (data.success) {
+            state.filesList[directory] = data.files || [];
+            state.filesStats[directory] = {
+              totalSize: data.totalSize || 0,
+              totalSizeFormatted: data.totalSizeFormatted || '0 B',
+              count: data.files ? data.files.length : 0
+            };
+            addDebugLog(`成功加载 ${directory} 目录，共 ${data.files.length} 个文件`, 'success');
+          } else {
+            addDebugLog(`加载 ${directory} 目录失败: ${data.error}`, 'error');
+          }
+        } catch (e) {
+          addDebugLog(`加载 ${directory} 目录错误: ${e.response?.data?.error || e.message}`, 'error');
+        } finally {
+          state.filesLoading[directory] = false;
+        }
+      }
+      
+      function switchFilesDirectory(directory) {
+        state.filesCurrentDirectory = directory;
+        loadFilesList(directory);
+      }
+      
+      async function deleteFile(directory, filename) {
+        if (!confirm(`确定要删除文件 "${filename}" 吗？此操作不可恢复！`)) {
+          return;
+        }
+        
+        addDebugLog(`删除文件: ${directory}/${filename}`, 'info');
+        
+        try {
+          const { data } = await axios.delete(`${BASE_URL}/api/files/delete`, {
+            data: { directory, filename }
+          });
+          
+          if (data.success) {
+            addDebugLog(`文件删除成功: ${filename}`, 'success');
+            // 重新加载文件列表
+            await loadFilesList(directory);
+          } else {
+            addDebugLog(`文件删除失败: ${data.error}`, 'error');
+          }
+        } catch (e) {
+          addDebugLog(`删除文件错误: ${e.response?.data?.error || e.message}`, 'error');
+        }
+      }
+      
+      async function clearDirectory(directory) {
+        const dirName = directory === 'uploads' ? '上传文件' : '输出文件';
+        if (!confirm(`确定要清空 ${dirName} 目录吗？此操作将删除所有文件且不可恢复！`)) {
+          return;
+        }
+        
+        addDebugLog(`清空目录: ${directory}`, 'info');
+        
+        try {
+          const { data } = await axios.delete(`${BASE_URL}/api/files/clear`, {
+            params: { directory }
+          });
+          
+          if (data.success) {
+            addDebugLog(`目录清空成功: 删除了 ${data.deletedCount} 个文件，释放 ${data.totalSizeFormatted}`, 'success');
+            // 重新加载文件列表
+            await loadFilesList(directory);
+          } else {
+            addDebugLog(`目录清空失败: ${data.error}`, 'error');
+          }
+        } catch (e) {
+          addDebugLog(`清空目录错误: ${e.response?.data?.error || e.message}`, 'error');
+        }
+      }
+      
+      // 显示文件预览
+      function showFilePreview(file) {
+        state.filePreviewFile = file;
+        state.filePreviewVisible = true;
+        state.imageLoadError = false;
+        // 阻止背景滚动
+        document.body.style.overflow = 'hidden';
+      }
+      
+      // 关闭文件预览
+      function closeFilePreview() {
+        state.filePreviewVisible = false;
+        state.filePreviewFile = null;
+        state.imageLoadError = false;
+        // 恢复背景滚动
+        document.body.style.overflow = '';
+      }
+      
+      // 处理图片加载错误
+      function handleImageError() {
+        state.imageLoadError = true;
+      }
+      
       // 获取默认参数
       function getDefaultParams(type) {
         const defaults = {
@@ -1638,7 +1770,16 @@ function initApp() {
         updateOperationParams,
         getRequestPayload,
         handleChainProcess,
-        useChainProcessAsSource
+        useChainProcessAsSource,
+        // 文件管理相关函数
+        loadFilesList,
+        switchFilesDirectory,
+        deleteFile,
+        clearDirectory,
+        formatFileSize,
+        showFilePreview,
+        closeFilePreview,
+        handleImageError
       };
     }
   }).mount('#app');

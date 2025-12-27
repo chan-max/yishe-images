@@ -379,6 +379,52 @@
         margin-left: 0;
       }
     }
+    /* 文件预览弹窗样式 */
+    .file-preview-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 2rem;
+    }
+    .file-preview-content {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .file-preview-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      align-items: center;
+      background: #f9f9f9;
+    }
+    .file-preview-body {
+      padding: 1.5rem;
+      overflow: auto;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
+      max-height: calc(90vh - 150px);
+    }
+    .file-preview-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid #e0e0e0;
+      background: #f9f9f9;
+    }
   </style>
 </head>
 <body>
@@ -1183,6 +1229,130 @@
           </div>
         </div>
 
+        <!-- 文件管理 -->
+        <div class="view-container" :class="{ active: state.currentView === 'files' }">
+          <div class="section">
+            <h1 class="ui header">
+              <i class="folder icon"></i>
+              <div class="content">
+                文件管理
+                <div class="sub header">查看和管理 uploads 和 output 目录下的文件</div>
+              </div>
+            </h1>
+
+            <!-- 目录切换 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">选择目录</h3>
+              <div class="ui two buttons">
+                <button 
+                  class="ui button" 
+                  :class="{ primary: state.filesCurrentDirectory === 'uploads' }"
+                  @click="switchFilesDirectory('uploads')"
+                  :disabled="state.filesLoading.uploads"
+                >
+                  <i class="upload icon"></i> 上传文件 (uploads)
+                </button>
+                <button 
+                  class="ui button" 
+                  :class="{ primary: state.filesCurrentDirectory === 'output' }"
+                  @click="switchFilesDirectory('output')"
+                  :disabled="state.filesLoading.output"
+                >
+                  <i class="download icon"></i> 输出文件 (output)
+                </button>
+              </div>
+            </div>
+
+            <!-- 文件列表 -->
+            <div class="ui segment compact-segment">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                <h3 class="ui dividing header" style="font-size: 0.95em; margin: 0;">
+                  {{ state.filesCurrentDirectory === 'uploads' ? '上传文件' : '输出文件' }}列表
+                </h3>
+                <div>
+                  <button 
+                    class="ui small button" 
+                    @click="loadFilesList(state.filesCurrentDirectory)"
+                    :class="{ loading: state.filesLoading[state.filesCurrentDirectory] }"
+                    :disabled="state.filesLoading[state.filesCurrentDirectory]"
+                  >
+                    <i class="refresh icon"></i> 刷新
+                  </button>
+                  <button 
+                    class="ui small red button" 
+                    @click="clearDirectory(state.filesCurrentDirectory)"
+                    :disabled="state.filesLoading[state.filesCurrentDirectory] || state.filesList[state.filesCurrentDirectory].length === 0"
+                  >
+                    <i class="trash icon"></i> 清空目录
+                  </button>
+                </div>
+              </div>
+
+              <!-- 统计信息 -->
+              <div v-if="state.filesStats[state.filesCurrentDirectory]" class="ui small message" style="padding: 0.5rem; margin-bottom: 0.75rem;">
+                <p style="margin: 0.25rem 0; font-size: 0.85em;">
+                  <strong>文件数量:</strong> {{ state.filesStats[state.filesCurrentDirectory].count }} 个
+                  <span style="margin-left: 1rem;">
+                    <strong>总大小:</strong> {{ state.filesStats[state.filesCurrentDirectory].totalSizeFormatted }}
+                  </span>
+                </p>
+              </div>
+
+              <!-- 文件列表 -->
+              <div v-if="state.filesLoading[state.filesCurrentDirectory]" class="ui active centered inline loader"></div>
+              
+              <div v-else-if="state.filesList[state.filesCurrentDirectory].length === 0" class="ui message">
+                <p>目录为空，暂无文件</p>
+              </div>
+
+              <div v-else class="ui relaxed divided list" style="max-height: calc(100vh - 280px); overflow-y: auto; overflow-x: hidden;">
+                <div 
+                  v-for="file in state.filesList[state.filesCurrentDirectory]" 
+                  :key="file.name"
+                  class="item"
+                  style="padding: 0.75rem 0; display: flex; align-items: center; justify-content: space-between;"
+                >
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <i class="file image icon" style="color: #2185d0;"></i>
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 500; word-break: break-all;">{{ file.name }}</div>
+                        <div style="font-size: 0.85em; color: #999; margin-top: 0.25rem;">
+                          {{ file.sizeFormatted }} · 
+                          {{ new Date(file.modified).toLocaleString('zh-CN') }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button 
+                      class="ui mini button"
+                      @click="showFilePreview(file)"
+                      style="white-space: nowrap;"
+                    >
+                      <i class="eye icon"></i> 查看
+                    </button>
+                    <a 
+                      :href="file.url" 
+                      :download="file.name"
+                      class="ui mini button"
+                      style="white-space: nowrap;"
+                    >
+                      <i class="download icon"></i> 下载
+                    </a>
+                    <button 
+                      class="ui mini red button"
+                      @click="deleteFile(state.filesCurrentDirectory, file.name)"
+                      style="white-space: nowrap;"
+                    >
+                      <i class="trash icon"></i> 删除
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
       </main>
 
@@ -1228,6 +1398,49 @@
           </div>
         </div>
       </aside>
+    </div>
+
+    <!-- 文件预览弹窗 -->
+    <div v-if="state.filePreviewVisible" class="file-preview-modal" @click.self="closeFilePreview">
+      <div class="file-preview-content">
+        <div class="file-preview-header">
+          <h3 style="margin: 0; flex: 1;">{{ state.filePreviewFile?.name }}</h3>
+          <button class="ui icon button" @click="closeFilePreview" style="margin-left: 1rem;">
+            <i class="close icon"></i>
+          </button>
+        </div>
+        <div class="file-preview-body">
+          <img 
+            v-if="state.filePreviewFile && !state.imageLoadError" 
+            :src="state.filePreviewFile.url" 
+            :alt="state.filePreviewFile.name"
+            style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 4px;"
+            @error="handleImageError"
+            @load="state.imageLoadError = false"
+          >
+          <div v-if="state.imageLoadError" class="ui message" style="text-align: center; padding: 2rem;">
+            <p>无法加载图片，可能不是有效的图片文件</p>
+          </div>
+        </div>
+        <div class="file-preview-footer">
+          <div style="font-size: 0.85em; color: #999; margin-bottom: 0.5rem;">
+            <span>大小: {{ state.filePreviewFile?.sizeFormatted }}</span>
+            <span style="margin-left: 1rem;">修改时间: {{ state.filePreviewFile ? new Date(state.filePreviewFile.modified).toLocaleString('zh-CN') : '' }}</span>
+          </div>
+          <div>
+            <a 
+              :href="state.filePreviewFile?.url" 
+              :download="state.filePreviewFile?.name"
+              class="ui primary button"
+            >
+              <i class="download icon"></i> 下载
+            </a>
+            <button class="ui button" @click="closeFilePreview">
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

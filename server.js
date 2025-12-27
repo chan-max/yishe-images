@@ -629,6 +629,246 @@ app.get('/api/imagemagick-status', async (req, res) => {
 app.use('/uploads', express.static(uploadsDir));
 app.use('/output', express.static(outputDir));
 
+/**
+ * @swagger
+ * /api/files/list:
+ *   get:
+ *     summary: 获取文件列表
+ *     tags: [文件管理]
+ *     parameters:
+ *       - in: query
+ *         name: directory
+ *         schema:
+ *           type: string
+ *           enum: [uploads, output]
+ *         required: true
+ *         description: 目录名称 (uploads 或 output)
+ *     responses:
+ *       200:
+ *         description: 文件列表
+ *       500:
+ *         description: 获取失败
+ */
+app.get('/api/files/list', async (req, res) => {
+  try {
+    const { directory } = req.query;
+    
+    if (!directory || !['uploads', 'output'].includes(directory)) {
+      return res.status(400).json({
+        success: false,
+        error: '目录参数无效，必须是 uploads 或 output'
+      });
+    }
+    
+    const dirPath = directory === 'uploads' ? uploadsDir : outputDir;
+    
+    if (!fs.existsSync(dirPath)) {
+      return res.json({
+        success: true,
+        files: []
+      });
+    }
+    
+    const files = fs.readdirSync(dirPath)
+      .map(filename => {
+        const filePath = path.join(dirPath, filename);
+        const stats = fs.statSync(filePath);
+        
+        return {
+          name: filename,
+          size: stats.size,
+          sizeFormatted: formatFileSize(stats.size),
+          modified: stats.mtime,
+          isDirectory: stats.isDirectory(),
+          url: `/${directory}/${filename}`
+        };
+      })
+      .filter(file => !file.isDirectory) // 只返回文件，不返回目录
+      .sort((a, b) => b.modified - a.modified); // 按修改时间倒序
+    
+    res.json({
+      success: true,
+      files,
+      directory,
+      totalSize: files.reduce((sum, file) => sum + file.size, 0),
+      totalSizeFormatted: formatFileSize(files.reduce((sum, file) => sum + file.size, 0))
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/files/delete:
+ *   delete:
+ *     summary: 删除文件
+ *     tags: [文件管理]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - directory
+ *               - filename
+ *             properties:
+ *               directory:
+ *                 type: string
+ *                 enum: [uploads, output]
+ *               filename:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *       400:
+ *         description: 参数错误
+ *       500:
+ *         description: 删除失败
+ */
+app.delete('/api/files/delete', async (req, res) => {
+  try {
+    const { directory, filename } = req.body;
+    
+    if (!directory || !['uploads', 'output'].includes(directory)) {
+      return res.status(400).json({
+        success: false,
+        error: '目录参数无效，必须是 uploads 或 output'
+      });
+    }
+    
+    if (!filename) {
+      return res.status(400).json({
+        success: false,
+        error: '文件名不能为空'
+      });
+    }
+    
+    // 安全检查：防止路径遍历攻击
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({
+        success: false,
+        error: '文件名包含非法字符'
+      });
+    }
+    
+    const dirPath = directory === 'uploads' ? uploadsDir : outputDir;
+    const filePath = path.join(dirPath, filename);
+    
+    // 确保文件在指定目录内
+    if (!filePath.startsWith(dirPath)) {
+      return res.status(400).json({
+        success: false,
+        error: '文件路径无效'
+      });
+    }
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: '文件不存在'
+      });
+    }
+    
+    fs.unlinkSync(filePath);
+    
+    res.json({
+      success: true,
+      message: '文件删除成功'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/files/clear:
+ *   delete:
+ *     summary: 清空目录
+ *     tags: [文件管理]
+ *     parameters:
+ *       - in: query
+ *         name: directory
+ *         schema:
+ *           type: string
+ *           enum: [uploads, output]
+ *         required: true
+ *         description: 目录名称 (uploads 或 output)
+ *     responses:
+ *       200:
+ *         description: 清空成功
+ *       400:
+ *         description: 参数错误
+ *       500:
+ *         description: 清空失败
+ */
+app.delete('/api/files/clear', async (req, res) => {
+  try {
+    const { directory } = req.query;
+    
+    if (!directory || !['uploads', 'output'].includes(directory)) {
+      return res.status(400).json({
+        success: false,
+        error: '目录参数无效，必须是 uploads 或 output'
+      });
+    }
+    
+    const dirPath = directory === 'uploads' ? uploadsDir : outputDir;
+    
+    if (!fs.existsSync(dirPath)) {
+      return res.json({
+        success: true,
+        message: '目录不存在或已为空'
+      });
+    }
+    
+    const files = fs.readdirSync(dirPath);
+    let deletedCount = 0;
+    let totalSize = 0;
+    
+    files.forEach(filename => {
+      const filePath = path.join(dirPath, filename);
+      const stats = fs.statSync(filePath);
+      
+      if (stats.isFile()) {
+        totalSize += stats.size;
+        fs.unlinkSync(filePath);
+        deletedCount++;
+      }
+    });
+    
+    res.json({
+      success: true,
+      message: `成功删除 ${deletedCount} 个文件`,
+      deletedCount,
+      totalSize,
+      totalSizeFormatted: formatFileSize(totalSize)
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
 // 启动服务器
 app.listen(PORT, () => {
   console.log(`服务器运行在 http://localhost:${PORT}`);
