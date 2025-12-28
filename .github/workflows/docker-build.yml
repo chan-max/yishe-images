@@ -145,9 +145,6 @@ jobs:
             # 进入部署目录
             cd $DEPLOY_PATH || { echo "❌ 错误: 无法进入目录 $DEPLOY_PATH"; exit 1; }
             
-            # 创建必要的子目录（用于数据持久化）
-            mkdir -p uploads output template
-            
             # 检查 docker-compose.hub.yml 文件是否存在，如果不存在则自动创建
             if [ ! -f "docker-compose.hub.yml" ]; then
               echo "📄 docker-compose.hub.yml 文件不存在，正在自动创建..."
@@ -186,6 +183,17 @@ jobs:
             EOF
               echo "✅ docker-compose.hub.yml 文件创建成功（镜像: ${DOCKER_USERNAME}/yishe-images:latest）"
             fi
+            
+            # 从 docker-compose.hub.yml 文件中提取 volumes 的相对路径并创建目录
+            # 这样可以自动适配任何 volumes 配置，无需硬编码目录名
+            echo "📁 根据 docker-compose.hub.yml 中的 volumes 配置创建必要的目录..."
+            # 提取 volumes 中以 ./ 开头的相对路径（例如: ./uploads:/app/uploads -> uploads）
+            grep -E '^\s+-\s+\./' docker-compose.hub.yml 2>/dev/null | sed -E 's/.*\.\/([^:]+):.*/\1/' | while read -r dir; do
+              if [ -n "$dir" ]; then
+                mkdir -p "$dir"
+                echo "✅ 已创建目录: $dir"
+              fi
+            done
             
             COMPOSE_FILE="docker-compose.hub.yml"
             echo "📄 使用 Compose 文件: $COMPOSE_FILE"
