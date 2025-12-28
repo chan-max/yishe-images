@@ -1,6 +1,6 @@
 {
   "name": "yishe-images",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "ImageMagick Web UI - 全面的图像处理工具",
   "main": "server.js",
   "scripts": {
