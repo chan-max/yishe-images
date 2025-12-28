@@ -127,29 +127,67 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          envs: DEPLOY_PATH
+          envs: DEPLOY_PATH,DOCKER_USERNAME
           script: |
             # 设置部署路径（从环境变量获取，如果未设置则使用默认路径）
             DEPLOY_PATH="${DEPLOY_PATH:-/workspace/yishe-images}"
+            DOCKER_USERNAME="${DOCKER_USERNAME:-1sdesign}"
             
             echo "🚀 开始部署到服务器..."
             echo "📂 部署路径: $DEPLOY_PATH"
             
+            # 检查并创建部署目录（如果不存在）
+            if [ ! -d "$DEPLOY_PATH" ]; then
+              echo "📁 目录不存在，正在创建: $DEPLOY_PATH"
+              mkdir -p $DEPLOY_PATH || { echo "❌ 错误: 无法创建目录 $DEPLOY_PATH"; exit 1; }
+            fi
+            
             # 进入部署目录
             cd $DEPLOY_PATH || { echo "❌ 错误: 无法进入目录 $DEPLOY_PATH"; exit 1; }
             
-            # 检查 docker-compose.hub.yml 文件是否存在
+            # 创建必要的子目录（用于数据持久化）
+            mkdir -p uploads output template
+            
+            # 检查 docker-compose.hub.yml 文件是否存在，如果不存在则自动创建
             if [ ! -f "docker-compose.hub.yml" ]; then
-              echo "⚠️  警告: docker-compose.hub.yml 文件不存在，尝试使用 docker-compose.yml"
-              if [ ! -f "docker-compose.yml" ]; then
-                echo "❌ 错误: docker-compose.yml 文件也不存在"
-                exit 1
-              fi
-              COMPOSE_FILE="docker-compose.yml"
-            else
-              COMPOSE_FILE="docker-compose.hub.yml"
+              echo "📄 docker-compose.hub.yml 文件不存在，正在自动创建..."
+              cat > docker-compose.hub.yml << EOF
+            version: '3.8'
+            
+            services:
+              yishe-images:
+                # 使用 Docker Hub 镜像（发布后使用此配置）
+                image: ${DOCKER_USERNAME}/yishe-images:latest
+                container_name: yishe-images
+                ports:
+                  # 格式：宿主机端口:容器端口
+                  # 将容器的 1513 端口映射到宿主机的 1513 端口
+                  - "1513:1513"
+                volumes:
+                  # 数据持久化：将容器内的目录挂载到宿主机
+                  # 这样即使容器删除，数据也不会丢失
+                  - ./uploads:/app/uploads
+                  - ./output:/app/output
+                  - ./template:/app/template
+                environment:
+                  # 环境变量
+                  - NODE_ENV=production
+                  - PORT=1513
+                restart: unless-stopped
+                # 资源限制（可选）
+                deploy:
+                  resources:
+                    limits:
+                      cpus: '2'
+                      memory: 2G
+                    reservations:
+                      cpus: '0.5'
+                      memory: 512M
+            EOF
+              echo "✅ docker-compose.hub.yml 文件创建成功（镜像: ${DOCKER_USERNAME}/yishe-images:latest）"
             fi
             
+            COMPOSE_FILE="docker-compose.hub.yml"
             echo "📄 使用 Compose 文件: $COMPOSE_FILE"
             
             # 拉取最新镜像
@@ -181,6 +219,7 @@ jobs:
             echo "🎉 部署完成！"
         env:
           DEPLOY_PATH: ${{ secrets.SERVER_DEPLOY_PATH || '/workspace/yishe-images' }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
       - name: Deploy Summary
         if: steps.deploy.outcome == 'success'
