@@ -149,18 +149,76 @@ function initApp() {
         imageLoadError: false
       });
 
-      // 菜单项配置
-      // 操作类型定义
+      // 操作类型定义（前端使用“平铺的小颗粒操作”，不再展示大类前缀）
+      // 基础操作（标签不带“基础 / ”前缀）
+      const baseOperationTypes = [
+        { value: 'resize', baseType: 'resize', label: '调整大小', icon: 'expand', description: '缩放图片到指定尺寸，可以保持原始宽高比或强制拉伸到目标尺寸' },
+        { value: 'crop', baseType: 'crop', label: '矩形裁剪', icon: 'crop', description: '从图片中裁剪出一个矩形区域，需要指定起始坐标和裁剪区域的宽高' },
+        { value: 'shapeCrop', baseType: 'shapeCrop', label: '形状裁剪', icon: 'circle', description: '按照指定形状（圆形、椭圆、星形等）裁剪图片，保留形状内的内容' },
+        { value: 'rotate', baseType: 'rotate', label: '旋转', icon: 'redo', description: '按指定角度旋转图片，可以设置旋转后的背景颜色' },
+        { value: 'convert', baseType: 'convert', label: '格式转换', icon: 'exchange', description: '将图片转换为其他格式（JPG、PNG、GIF、WEBP、BMP等），可设置输出质量' },
+        { value: 'watermark', baseType: 'watermark', label: '水印', icon: 'tint', description: '在图片上添加文字或图片水印，可设置位置和透明度' },
+        { value: 'adjust', baseType: 'adjust', label: '颜色调整', icon: 'adjust', description: '调整图片的亮度、对比度和饱和度，用于改善图片的视觉效果' }
+      ];
+
+      // 滤镜类（映射到后端 filter-* 扁平类型，标签不带“滤镜 / ”前缀）
+      const filterOperationTypes = [
+        { value: 'filter-blur', baseType: 'filter', label: '模糊', icon: 'filter', description: '应用模糊滤镜，让图片变得柔和', meta: { filterType: 'blur' } },
+        { value: 'filter-sharpen', baseType: 'filter', label: '锐化', icon: 'filter', description: '增强图片细节，让边缘更清晰', meta: { filterType: 'sharpen' } },
+        { value: 'filter-emboss', baseType: 'filter', label: '浮雕', icon: 'filter', description: '让图片产生立体浮雕效果', meta: { filterType: 'emboss' } },
+        { value: 'filter-edge', baseType: 'filter', label: '边缘检测', icon: 'filter', description: '只保留图片边缘轮廓，形成线条效果', meta: { filterType: 'edge' } },
+        { value: 'filter-charcoal', baseType: 'filter', label: '炭笔画', icon: 'filter', description: '将图片转为炭笔画风格', meta: { filterType: 'charcoal' } },
+        { value: 'filter-oil-painting', baseType: 'filter', label: '油画', icon: 'filter', description: '模拟油画效果', meta: { filterType: 'oil-painting' } },
+        { value: 'filter-sepia', baseType: 'filter', label: '怀旧', icon: 'filter', description: '快速加上棕褐色怀旧滤镜', meta: { filterType: 'sepia' } },
+        { value: 'filter-grayscale', baseType: 'filter', label: '灰度', icon: 'filter', description: '快速转为灰度图片', meta: { filterType: 'grayscale' } },
+        { value: 'filter-negate', baseType: 'filter', label: '负片', icon: 'filter', description: '将颜色反转，生成负片效果', meta: { filterType: 'negate' } }
+      ];
+
+      // 效果类（映射到后端 effects-* 扁平类型，标签不带“效果 / ”前缀）
+      const effectOperationTypes = [
+        { value: 'effects-grayscale', baseType: 'effects', label: '黑白化', icon: 'magic', description: '将图片转换为黑白风格', meta: { effectType: 'grayscale' } },
+        { value: 'effects-sepia', baseType: 'effects', label: '怀旧', icon: 'magic', description: '添加棕褐色调的复古效果', meta: { effectType: 'sepia' } },
+        { value: 'effects-negate', baseType: 'effects', label: '负片', icon: 'magic', description: '反转所有颜色，形成底片效果', meta: { effectType: 'negate' } },
+        { value: 'effects-blur', baseType: 'effects', label: '模糊', icon: 'magic', description: '更高级的模糊效果，可配合半径等参数', meta: { effectType: 'blur' } },
+        { value: 'effects-gaussian-blur', baseType: 'effects', label: '高斯模糊', icon: 'magic', description: '使用高斯算法的平滑模糊', meta: { effectType: 'gaussian-blur' } },
+        { value: 'effects-motion-blur', baseType: 'effects', label: '运动模糊', icon: 'magic', description: '模拟物体快速运动产生的拖影效果', meta: { effectType: 'motion-blur' } },
+        { value: 'effects-sharpen', baseType: 'effects', label: '锐化', icon: 'magic', description: '增强图片细节的锐化效果', meta: { effectType: 'sharpen' } },
+        { value: 'effects-unsharp', baseType: 'effects', label: '非锐化遮罩', icon: 'magic', description: '更专业的锐化控制方式', meta: { effectType: 'unsharp' } },
+        { value: 'effects-charcoal', baseType: 'effects', label: '炭笔画', icon: 'magic', description: '生成炭笔素描风格图片', meta: { effectType: 'charcoal' } },
+        { value: 'effects-oil-painting', baseType: 'effects', label: '油画', icon: 'magic', description: '模拟油画笔触效果', meta: { effectType: 'oil-painting' } },
+        { value: 'effects-sketch', baseType: 'effects', label: '铅笔素描', icon: 'magic', description: '转换为铅笔素描风格', meta: { effectType: 'sketch' } },
+        { value: 'effects-emboss', baseType: 'effects', label: '浮雕', icon: 'magic', description: '立体浮雕艺术效果', meta: { effectType: 'emboss' } },
+        { value: 'effects-edge', baseType: 'effects', label: '边缘检测', icon: 'magic', description: '只保留轮廓边缘线条', meta: { effectType: 'edge' } },
+        { value: 'effects-posterize', baseType: 'effects', label: '海报化', icon: 'magic', description: '减少颜色数量，形成海报风格', meta: { effectType: 'posterize' } },
+        { value: 'effects-pixelate', baseType: 'effects', label: '像素化', icon: 'magic', description: '生成大颗粒像素风格', meta: { effectType: 'pixelate' } },
+        { value: 'effects-mosaic', baseType: 'effects', label: '马赛克', icon: 'magic', description: '用于打码或艺术马赛克效果', meta: { effectType: 'mosaic' } },
+        { value: 'effects-brightness', baseType: 'effects', label: '亮度', icon: 'magic', description: '单独调整亮度', meta: { effectType: 'brightness' } },
+        { value: 'effects-contrast', baseType: 'effects', label: '对比度', icon: 'magic', description: '单独调整对比度', meta: { effectType: 'contrast' } },
+        { value: 'effects-saturation', baseType: 'effects', label: '饱和度', icon: 'magic', description: '单独调整颜色饱和度', meta: { effectType: 'saturation' } },
+        { value: 'effects-hue', baseType: 'effects', label: '色相', icon: 'magic', description: '改变整体色调', meta: { effectType: 'hue' } },
+        { value: 'effects-colorize', baseType: 'effects', label: '着色', icon: 'magic', description: '给图片整体加上一种颜色', meta: { effectType: 'colorize' } },
+        { value: 'effects-tint', baseType: 'effects', label: '色调', icon: 'magic', description: '轻微地给图片染色', meta: { effectType: 'tint' } },
+        { value: 'effects-noise', baseType: 'effects', label: '噪点', icon: 'magic', description: '添加胶片颗粒感或数字噪点', meta: { effectType: 'noise' } },
+        { value: 'effects-despeckle', baseType: 'effects', label: '去噪', icon: 'magic', description: '移除噪点，让图片更干净', meta: { effectType: 'despeckle' } },
+        { value: 'effects-vignette', baseType: 'effects', label: '晕影', icon: 'magic', description: '在边缘添加暗角，让中心更突出', meta: { effectType: 'vignette' } },
+        { value: 'effects-solarize', baseType: 'effects', label: '曝光', icon: 'magic', description: '模拟过度曝光的反转效果', meta: { effectType: 'solarize' } },
+        { value: 'effects-swirl', baseType: 'effects', label: '漩涡', icon: 'magic', description: '让图片围绕中心扭曲', meta: { effectType: 'swirl' } },
+        { value: 'effects-wave', baseType: 'effects', label: '波浪', icon: 'magic', description: '让图片产生波纹扭曲', meta: { effectType: 'wave' } },
+        { value: 'effects-implode', baseType: 'effects', label: '内爆', icon: 'magic', description: '向中心收缩的扭曲效果', meta: { effectType: 'implode' } },
+        { value: 'effects-explode', baseType: 'effects', label: '爆炸', icon: 'magic', description: '向外膨胀的扭曲效果', meta: { effectType: 'explode' } },
+        { value: 'effects-spread', baseType: 'effects', label: '扩散', icon: 'magic', description: '随机扩散像素，形成特殊模糊', meta: { effectType: 'spread' } },
+        { value: 'effects-normalize', baseType: 'effects', label: '标准化', icon: 'magic', description: '自动增强整体对比度', meta: { effectType: 'normalize' } },
+        { value: 'effects-equalize', baseType: 'effects', label: '均衡化', icon: 'magic', description: '通过直方图均衡增强细节', meta: { effectType: 'equalize' } },
+        { value: 'effects-gamma', baseType: 'effects', label: '伽马校正', icon: 'magic', description: '只调整中间调的亮度', meta: { effectType: 'gamma' } },
+        { value: 'effects-threshold', baseType: 'effects', label: '阈值化', icon: 'magic', description: '转为黑白二值图', meta: { effectType: 'threshold' } },
+        { value: 'effects-quantize', baseType: 'effects', label: '颜色量化', icon: 'magic', description: '减少颜色数量，形成索引色风格', meta: { effectType: 'quantize' } }
+      ];
+
+      // 汇总所有可选操作（用于下拉选择和平铺小分类）
       const operationTypes = [
-        { value: 'resize', label: '调整大小', icon: 'expand', description: '缩放图片到指定尺寸，可以保持原始宽高比或强制拉伸到目标尺寸' },
-        { value: 'crop', label: '矩形裁剪', icon: 'crop', description: '从图片中裁剪出一个矩形区域，需要指定起始坐标和裁剪区域的宽高' },
-        { value: 'shapeCrop', label: '形状裁剪', icon: 'circle', description: '按照指定形状（圆形、椭圆、星形等）裁剪图片，保留形状内的内容' },
-        { value: 'rotate', label: '旋转', icon: 'redo', description: '按指定角度旋转图片，可以设置旋转后的背景颜色' },
-        { value: 'convert', label: '格式转换', icon: 'exchange', description: '将图片转换为其他格式（JPG、PNG、GIF、WEBP、BMP等），可设置输出质量' },
-        { value: 'watermark', label: '水印', icon: 'tint', description: '在图片上添加文字或图片水印，可设置位置和透明度' },
-        { value: 'adjust', label: '颜色调整', icon: 'adjust', description: '调整图片的亮度、对比度和饱和度，用于改善图片的视觉效果' },
-        { value: 'filter', label: '滤镜', icon: 'filter', description: '应用模糊、锐化、浮雕等滤镜效果，可调整强度' },
-        { value: 'effects', label: '效果', icon: 'magic', description: '应用各种图片效果，如黑白化、负片、怀旧、油画、素描等30多种效果' }
+        ...baseOperationTypes,
+        ...filterOperationTypes,
+        ...effectOperationTypes
       ];
 
       const menuItems = [
@@ -1381,14 +1439,31 @@ function initApp() {
       }
       
       // 添加操作
-      function addOperation(type) {
+      function addOperation(typeOrMeta) {
+        // 兼容：既支持传入字符串（旧逻辑），也支持传入包含 baseType/meta 的对象
+        let meta;
+        if (typeof typeOrMeta === 'string') {
+          meta = operationTypes.find(o => o.value === typeOrMeta) || {
+            value: typeOrMeta,
+            baseType: typeOrMeta,
+            meta: {}
+          };
+        } else {
+          meta = typeOrMeta;
+        }
+
+        const baseType = meta.baseType || meta.value || meta.type;
+        const defaultParams = getDefaultParams(baseType, meta);
+
         const operation = {
           id: Date.now(),
-          type: type,
-          params: getDefaultParams(type)
+          type: baseType,
+          // subtypeKey 用于在 UI 中显示更细粒度的名称（如 “效果 / 黑白化”）
+          subtypeKey: meta.value || baseType,
+          params: defaultParams
         };
         state.operationChain.push(operation);
-        addDebugLog(`添加操作: ${getOperationLabel(type)}`, 'info');
+        addDebugLog(`添加操作: ${getOperationLabel(operation)}`, 'info');
       }
       
       // 添加选中的操作
@@ -1397,7 +1472,8 @@ function initApp() {
           addDebugLog('请先选择操作类型', 'error');
           return;
         }
-        addOperation(state.selectedOperationType);
+        const meta = operationTypes.find(o => o.value === state.selectedOperationType);
+        addOperation(meta || state.selectedOperationType);
         state.selectedOperationType = ''; // 添加后清空选择
         // 切换到新添加的操作
         state.selectedOperationIndex = state.operationChain.length - 1;
@@ -1429,7 +1505,7 @@ function initApp() {
       function removeOperation(index) {
         const op = state.operationChain[index];
         state.operationChain.splice(index, 1);
-        addDebugLog(`删除操作: ${getOperationLabel(op.type)}`, 'info');
+        addDebugLog(`删除操作: ${getOperationLabel(op)}`, 'info');
       }
       
       // 上移操作
@@ -1451,13 +1527,25 @@ function initApp() {
       }
       
       // 获取操作标签
-      function getOperationLabel(type) {
-        const op = operationTypes.find(o => o.value === type);
-        return op ? op.label : type;
+      function getOperationLabel(operationOrType) {
+        let key = '';
+        if (typeof operationOrType === 'string') {
+          key = operationOrType;
+        } else if (operationOrType && typeof operationOrType === 'object') {
+          key = operationOrType.subtypeKey || operationOrType.type;
+        }
+        const op = operationTypes.find(o => o.value === key) || operationTypes.find(o => o.baseType === key);
+        return op ? op.label : key;
       }
       
-      function getOperationDescription(type) {
-        const op = operationTypes.find(o => o.value === type);
+      function getOperationDescription(operationOrType) {
+        let key = '';
+        if (typeof operationOrType === 'string') {
+          key = operationOrType;
+        } else if (operationOrType && typeof operationOrType === 'object') {
+          key = operationOrType.subtypeKey || operationOrType.type;
+        }
+        const op = operationTypes.find(o => o.value === key) || operationTypes.find(o => o.baseType === key);
         return op ? op.description : '';
       }
       
@@ -1570,9 +1658,9 @@ function initApp() {
         state.imageLoadError = true;
       }
       
-      // 获取默认参数
-      function getDefaultParams(type) {
-        const defaults = {
+      // 获取默认参数（不在 params 中保存 effectType / filterType，效果类型只由 type 表达）
+      function getDefaultParams(type, meta) {
+        const baseDefaults = {
           resize: { width: 800, height: 600, maintainAspectRatio: true, quality: 90 },
           crop: { x: 0, y: 0, width: 500, height: 500 },
           shapeCrop: { shape: 'circle', x: null, y: null, width: 200, height: 200, backgroundColor: 'transparent' },
@@ -1580,10 +1668,28 @@ function initApp() {
           convert: { format: 'jpg', quality: 90 },
           watermark: { type: 'text', text: '水印', fontSize: 24, color: '#FFFFFF', position: 'bottom-right', opacity: 0.5 },
           adjust: { brightness: 0, contrast: 0, saturation: 0 },
-          filter: { filterType: 'blur', intensity: 1 },
-          effects: { effectType: 'grayscale', method: 'Rec601Luma', intensity: 100 }
+          // filter / effects 只在 params 中保留真正的参数字段，不再包含 filterType / effectType
+          filter: { intensity: 1 },
+          effects: { method: 'Rec601Luma', intensity: 100 }
         };
-        return defaults[type] || {};
+
+        const defaults = { ...(baseDefaults[type] || {}) };
+
+        return defaults;
+      }
+
+      // 根据操作获取效果 key（例如 'effects-grayscale' -> 'grayscale'）
+      function getEffectKeyFromOperation(operation) {
+        if (!operation) return '';
+        let key = operation.subtypeKey || operation.type || '';
+        if (typeof key !== 'string') return '';
+        if (key.startsWith('effects-')) {
+          return key.slice('effects-'.length);
+        }
+        if (key.startsWith('effect-')) {
+          return key.slice('effect-'.length);
+        }
+        return key;
       }
       
       // 获取操作参数（用于显示）
@@ -1613,10 +1719,14 @@ function initApp() {
         if (!state.chainProcessFilename) return null;
         return {
           filename: state.chainProcessFilename,
-          operations: state.operationChain.map(op => ({
-            type: op.type,
-            params: op.params
-          }))
+          operations: state.operationChain.map(op => {
+            // 扁平类型优先：filter-sharpen / effects-grayscale 等
+            const type = op.subtypeKey || op.type;
+            return {
+              type,
+              params: op.params
+            };
+          })
         };
       }
       
@@ -1726,6 +1836,7 @@ function initApp() {
         removeEffect,
         clearEffects,
         getEffectName,
+        getEffectKeyFromOperation,
         updateEffectParams,
         needsRadius,
         needsSigma,

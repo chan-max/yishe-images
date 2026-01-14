@@ -749,7 +749,7 @@
                       style="white-space: nowrap; border-radius: 4px 4px 0 0; margin-bottom: -2px; border-bottom: 2px solid transparent;"
                       :style="{ 'border-bottom-color': state.selectedOperationIndex === index ? '#2185d0' : 'transparent' }"
                     >
-                      <span style="margin-right: 0.5rem;">{{ index + 1 }}. {{ getOperationLabel(operation.type) }}</span>
+                      <span style="margin-right: 0.5rem;">{{ index + 1 }}. {{ getOperationLabel(operation) }}</span>
                       <button 
                         class="ui mini icon button" 
                         @click.stop="removeOperationWithIndex(index)"
@@ -765,8 +765,8 @@
                 <div v-if="state.operationChain.length > 0 && state.selectedOperationIndex >= 0 && state.selectedOperationIndex < state.operationChain.length" class="ui segment" style="padding: 0.75rem;">
                   <div style="display: flex; align-items: center; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e0e0e0;">
                     <div style="flex: 1;">
-                      <span style="font-weight: bold; margin-right: 0.5rem;">{{ state.selectedOperationIndex + 1 }}. {{ getOperationLabel(state.operationChain[state.selectedOperationIndex].type) }}</span>
-                      <p style="font-size: 0.85em; color: #666; margin: 0.25rem 0 0 0;">{{ getOperationDescription(state.operationChain[state.selectedOperationIndex].type) }}</p>
+                      <span style="font-weight: bold; margin-right: 0.5rem;">{{ state.selectedOperationIndex + 1 }}. {{ getOperationLabel(state.operationChain[state.selectedOperationIndex]) }}</span>
+                      <p style="font-size: 0.85em; color: #666; margin: 0.25rem 0 0 0;">{{ getOperationDescription(state.operationChain[state.selectedOperationIndex]) }}</p>
                     </div>
                     <div class="ui mini buttons" style="margin-left: auto;">
                       <button class="ui button" @click="moveOperationUp(state.selectedOperationIndex)" :disabled="state.selectedOperationIndex === 0">
@@ -966,13 +966,11 @@
                     
                     <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'filter'">
                       <div class="field">
-                        <label>滤镜类型</label>
-                        <select v-model="state.operationChain[state.selectedOperationIndex].params.filterType" class="ui dropdown">
-                          <option value="blur">模糊</option>
-                          <option value="sharpen">锐化</option>
-                          <option value="emboss">浮雕</option>
-                        </select>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">选择滤镜效果，模糊适合柔化图片，锐化适合增强细节，浮雕适合艺术效果</p>
+                        <label>滤镜</label>
+                        <div style="padding: 0.5rem 0.75rem; border: 1px solid #e0e0e0; border-radius: 4px; background: #f9f9f9;">
+                          {{ getOperationLabel(state.operationChain[state.selectedOperationIndex]) }}
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">该操作已固定为上述滤镜，如需其他滤镜，请在上方添加新的操作。</p>
                       </div>
                       <div class="field">
                         <label>强度</label>
@@ -983,52 +981,17 @@
                     
                     <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'effects'">
                       <div class="field">
-                        <label>效果类型</label>
-                        <select v-model="state.operationChain[state.selectedOperationIndex].params.effectType" class="ui dropdown">
-                          <option value="grayscale">黑白化</option>
-                          <option value="negate">负片</option>
-                          <option value="sepia">怀旧</option>
-                          <option value="blur">模糊</option>
-                          <option value="gaussian-blur">高斯模糊</option>
-                          <option value="motion-blur">运动模糊</option>
-                          <option value="sharpen">锐化</option>
-                          <option value="unsharp">非锐化遮罩</option>
-                          <option value="charcoal">炭笔画</option>
-                          <option value="oil-painting">油画</option>
-                          <option value="sketch">素描</option>
-                          <option value="emboss">浮雕</option>
-                          <option value="edge">边缘检测</option>
-                          <option value="posterize">海报化</option>
-                          <option value="pixelate">像素化</option>
-                          <option value="mosaic">马赛克</option>
-                          <option value="brightness">亮度</option>
-                          <option value="contrast">对比度</option>
-                          <option value="saturation">饱和度</option>
-                          <option value="hue">色相</option>
-                          <option value="colorize">着色</option>
-                          <option value="tint">色调</option>
-                          <option value="noise">噪点</option>
-                          <option value="despeckle">去噪点</option>
-                          <option value="vignette">晕影</option>
-                          <option value="solarize">曝光</option>
-                          <option value="swirl">漩涡</option>
-                          <option value="wave">波浪</option>
-                          <option value="implode">内爆</option>
-                          <option value="explode">爆炸</option>
-                          <option value="spread">扩散</option>
-                          <option value="normalize">标准化</option>
-                          <option value="equalize">均衡化</option>
-                          <option value="gamma">伽马校正</option>
-                          <option value="threshold">阈值化</option>
-                          <option value="quantize">量化</option>
-                        </select>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">选择要应用的图片效果，包含30多种效果（黑白化、负片、怀旧、油画、素描等），不同效果需要不同的参数</p>
+                        <label>效果</label>
+                        <div style="padding: 0.5rem 0.75rem; border: 1px solid #e0e0e0; border-radius: 4px; background: #f9f9f9;">
+                          {{ getEffectName(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex])) || getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]) || '未知效果' }}
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">该操作已固定为上述效果，如需其他效果，请在上方添加新的操作。</p>
                       </div>
                       
                       <!-- 根据效果类型显示不同参数 -->
-                      <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType">
+                      <template v-if="getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex])">
                         <!-- 需要 radius 和 sigma 的效果 -->
-                        <template v-if="needsRadius(state.operationChain[state.selectedOperationIndex].params.effectType) && needsSigma(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                        <template v-if="needsRadius(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex])) && needsSigma(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]))">
                           <div class="two fields">
                             <div class="field">
                               <label>半径</label>
@@ -1044,7 +1007,7 @@
                         </template>
                         
                         <!-- 只需要 radius 的效果 -->
-                        <template v-else-if="needsRadius(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                        <template v-else-if="needsRadius(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]))">
                           <div class="field">
                             <label>半径</label>
                             <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.radius" placeholder="半径">
@@ -1053,7 +1016,7 @@
                         </template>
                         
                         <!-- 需要 intensity 的效果 -->
-                        <template v-if="needsIntensity(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                        <template v-if="needsIntensity(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]))">
                           <div class="field">
                             <label>强度</label>
                             <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.intensity" placeholder="强度">
@@ -1062,7 +1025,7 @@
                         </template>
                         
                         <!-- 需要 value 的效果 -->
-                        <template v-if="needsValue(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                        <template v-if="needsValue(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]))">
                           <div class="field">
                             <label>数值</label>
                             <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.value" placeholder="数值">
@@ -1071,7 +1034,7 @@
                         </template>
                         
                         <!-- 需要 size 的效果 (mosaic, pixelate) -->
-                        <template v-if="needsSize(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                        <template v-if="needsSize(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]))">
                           <div class="field">
                             <label>大小</label>
                             <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.size" placeholder="大小">
@@ -1080,7 +1043,7 @@
                         </template>
                         
                         <!-- 需要 color 的效果 -->
-                        <template v-if="needsColor(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                        <template v-if="needsColor(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]))">
                           <div class="field">
                             <label>颜色</label>
                             <input type="color" v-model="state.operationChain[state.selectedOperationIndex].params.color" placeholder="颜色">
@@ -1089,7 +1052,7 @@
                         </template>
                         
                         <!-- 需要 angle 的效果 -->
-                        <template v-if="needsAngle(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                        <template v-if="needsAngle(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]))">
                           <div class="field">
                             <label>角度</label>
                             <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.angle" placeholder="角度">
@@ -1098,7 +1061,7 @@
                         </template>
                         
                         <!-- 需要 amount 的效果 -->
-                        <template v-if="needsAmount(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                        <template v-if="needsAmount(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]))">
                           <div class="field">
                             <label>数量</label>
                             <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.amount" placeholder="数量" step="0.1">
@@ -1107,7 +1070,7 @@
                         </template>
                         
                         <!-- 需要 threshold 的效果 -->
-                        <template v-if="needsThreshold(state.operationChain[state.selectedOperationIndex].params.effectType)">
+                        <template v-if="needsThreshold(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]))">
                           <div class="field">
                             <label>阈值</label>
                             <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.threshold" placeholder="阈值">
@@ -1116,7 +1079,7 @@
                         </template>
                         
                         <!-- 需要 amplitude 和 wavelength 的效果 (wave) -->
-                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'wave'">
+                        <template v-if="getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]) === 'wave'">
                           <div class="two fields">
                             <div class="field">
                               <label>振幅</label>
@@ -1132,7 +1095,7 @@
                         </template>
                         
                         <!-- 需要 levels 的效果 (posterize) -->
-                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'posterize'">
+                        <template v-if="getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]) === 'posterize'">
                           <div class="field">
                             <label>色阶数</label>
                             <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.levels" placeholder="色阶数">
@@ -1141,7 +1104,7 @@
                         </template>
                         
                         <!-- 需要 colors 的效果 (quantize) -->
-                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'quantize'">
+                        <template v-if="getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]) === 'quantize'">
                           <div class="field">
                             <label>颜色数</label>
                             <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.colors" placeholder="颜色数">
@@ -1150,7 +1113,7 @@
                         </template>
                         
                         <!-- 需要 method 和 intensity 的效果 (grayscale) -->
-                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'grayscale'">
+                        <template v-if="getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]) === 'grayscale'">
                           <div class="field">
                             <label>方法</label>
                             <select v-model="state.operationChain[state.selectedOperationIndex].params.method" class="ui dropdown">
@@ -1170,7 +1133,7 @@
                         </template>
                         
                         <!-- 需要 noiseType 的效果 (noise) -->
-                        <template v-if="state.operationChain[state.selectedOperationIndex].params.effectType === 'noise'">
+                        <template v-if="getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]) === 'noise'">
                           <div class="field">
                             <label>噪点类型</label>
                             <select v-model="state.operationChain[state.selectedOperationIndex].params.noiseType" class="ui dropdown">

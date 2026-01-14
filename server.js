@@ -11,6 +11,193 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const imagemagick = require('./lib/imagemagick');
 
+/**
+ * 将前端传入的“平铺小颗粒操作类型”归一化为内部基础类型
+ *
+ * 设计目标：
+ * - 对外：可以直接使用诸如 grayscale、sepia、blur 等细粒度类型（全部平铺）
+ * - 对内：仍然复用现有的 filter / effects 处理逻辑，保证兼容性
+ *
+ * 说明：
+ * - 如果传入的是旧版基础类型（resize / crop / filter / effects 等），则保持不变；
+ * - 如果传入的是新平铺类型（如 effect_grayscale / grayscale 等），则映射为：
+ *   - type: 'effects' 或 'filter'
+ *   - params: 自动补齐 effectType / filterType 及默认参数
+ */
+const FLAT_EFFECT_TYPE_MAP = {
+  // 灰度 / 黑白
+  grayscale: { baseType: 'effects', effectType: 'grayscale', defaults: { method: 'Rec601Luma', intensity: 100 } },
+  effect_grayscale: { baseType: 'effects', effectType: 'grayscale', defaults: { method: 'Rec601Luma', intensity: 100 } },
+  // 负片
+  negate: { baseType: 'effects', effectType: 'negate', defaults: {} },
+  effect_negate: { baseType: 'effects', effectType: 'negate', defaults: {} },
+  // 怀旧 / 棕褐色
+  sepia: { baseType: 'effects', effectType: 'sepia', defaults: { intensity: 80 } },
+  effect_sepia: { baseType: 'effects', effectType: 'sepia', defaults: { intensity: 80 } },
+  // 模糊相关
+  blur: { baseType: 'effects', effectType: 'blur', defaults: { radius: 5, sigma: 5 } },
+  effect_blur: { baseType: 'effects', effectType: 'blur', defaults: { radius: 5, sigma: 5 } },
+  gaussian_blur: { baseType: 'effects', effectType: 'gaussian-blur', defaults: { radius: 5 } },
+  'gaussian-blur': { baseType: 'effects', effectType: 'gaussian-blur', defaults: { radius: 5 } },
+  motion_blur: { baseType: 'effects', effectType: 'motion-blur', defaults: { radius: 10, angle: 0 } },
+  'motion-blur': { baseType: 'effects', effectType: 'motion-blur', defaults: { radius: 10, angle: 0 } },
+  // 锐化相关
+  sharpen: { baseType: 'effects', effectType: 'sharpen', defaults: { radius: 1, amount: 1 } },
+  effect_sharpen: { baseType: 'effects', effectType: 'sharpen', defaults: { radius: 1, amount: 1 } },
+  unsharp: { baseType: 'effects', effectType: 'unsharp', defaults: { radius: 1, amount: 1, threshold: 0.05 } },
+  effect_unsharp: { baseType: 'effects', effectType: 'unsharp', defaults: { radius: 1, amount: 1, threshold: 0.05 } },
+  // 艺术效果
+  charcoal: { baseType: 'effects', effectType: 'charcoal', defaults: { radius: 1, sigma: 0.5 } },
+  effect_charcoal: { baseType: 'effects', effectType: 'charcoal', defaults: { radius: 1, sigma: 0.5 } },
+  oil_painting: { baseType: 'effects', effectType: 'oil-painting', defaults: { radius: 3 } },
+  'oil-painting': { baseType: 'effects', effectType: 'oil-painting', defaults: { radius: 3 } },
+  sketch: { baseType: 'effects', effectType: 'sketch', defaults: { radius: 1, sigma: 0.5 } },
+  effect_sketch: { baseType: 'effects', effectType: 'sketch', defaults: { radius: 1, sigma: 0.5 } },
+  emboss: { baseType: 'effects', effectType: 'emboss', defaults: { radius: 1, sigma: 0.5 } },
+  effect_emboss: { baseType: 'effects', effectType: 'emboss', defaults: { radius: 1, sigma: 0.5 } },
+  edge: { baseType: 'effects', effectType: 'edge', defaults: { radius: 1 } },
+  effect_edge: { baseType: 'effects', effectType: 'edge', defaults: { radius: 1 } },
+  posterize: { baseType: 'effects', effectType: 'posterize', defaults: { levels: 4 } },
+  pixelate: { baseType: 'effects', effectType: 'pixelate', defaults: { size: 10 } },
+  mosaic: { baseType: 'effects', effectType: 'mosaic', defaults: { size: 10 } },
+  // 颜色调整
+  brightness: { baseType: 'effects', effectType: 'brightness', defaults: { value: 0 } },
+  contrast: { baseType: 'effects', effectType: 'contrast', defaults: { value: 0 } },
+  saturation: { baseType: 'effects', effectType: 'saturation', defaults: { value: 0 } },
+  hue: { baseType: 'effects', effectType: 'hue', defaults: { value: 0 } },
+  colorize: { baseType: 'effects', effectType: 'colorize', defaults: { color: '#FF0000', intensity: 50 } },
+  tint: { baseType: 'effects', effectType: 'tint', defaults: { color: '#FFD700', intensity: 50 } },
+  // 噪点 / 纹理
+  noise: { baseType: 'effects', effectType: 'noise', defaults: { noiseType: 'Uniform' } },
+  despeckle: { baseType: 'effects', effectType: 'despeckle', defaults: {} },
+  texture: { baseType: 'effects', effectType: 'texture', defaults: { textureType: 'Canvas' } },
+  // 特殊效果
+  vignette: { baseType: 'effects', effectType: 'vignette', defaults: { radius: 100, sigma: 50 } },
+  solarize: { baseType: 'effects', effectType: 'solarize', defaults: { threshold: 50 } },
+  swirl: { baseType: 'effects', effectType: 'swirl', defaults: { degrees: 90 } },
+  wave: { baseType: 'effects', effectType: 'wave', defaults: { amplitude: 25, wavelength: 150 } },
+  implode: { baseType: 'effects', effectType: 'implode', defaults: { amount: 0.5 } },
+  explode: { baseType: 'effects', effectType: 'explode', defaults: { amount: 0.5 } },
+  spread: { baseType: 'effects', effectType: 'spread', defaults: { radius: 3 } },
+  normalize: { baseType: 'effects', effectType: 'normalize', defaults: {} },
+  equalize: { baseType: 'effects', effectType: 'equalize', defaults: {} },
+  gamma: { baseType: 'effects', effectType: 'gamma', defaults: { value: 1.0 } },
+  threshold: { baseType: 'effects', effectType: 'threshold', defaults: { value: 50 } },
+  quantize: { baseType: 'effects', effectType: 'quantize', defaults: { colors: 256 } },
+};
+
+const FLAT_FILTER_TYPE_MAP = {
+  // 直接走 applyFilter 的简单滤镜
+  filter_blur: { baseType: 'filter', filterType: 'blur', defaults: { intensity: 1 } },
+  filter_sharpen: { baseType: 'filter', filterType: 'sharpen', defaults: { intensity: 1 } },
+  filter_emboss: { baseType: 'filter', filterType: 'emboss', defaults: { intensity: 1 } },
+  filter_edge: { baseType: 'filter', filterType: 'edge', defaults: { intensity: 1 } },
+  filter_charcoal: { baseType: 'filter', filterType: 'charcoal', defaults: { intensity: 1 } },
+  filter_oil_painting: { baseType: 'filter', filterType: 'oil-painting', defaults: { intensity: 1 } },
+  filter_sepia: { baseType: 'filter', filterType: 'sepia', defaults: { intensity: 1 } },
+  filter_grayscale: { baseType: 'filter', filterType: 'grayscale', defaults: { intensity: 1 } },
+  filter_negate: { baseType: 'filter', filterType: 'negate', defaults: { intensity: 1 } },
+};
+
+function normalizeOperation(type, params = {}) {
+  // 已有基础类型（几何/水印/颜色），直接返回
+  const basicTypes = new Set([
+    'resize',
+    'crop',
+    'shapeCrop',
+    'rotate',
+    'convert',
+    'watermark',
+    'adjust',
+  ]);
+  if (basicTypes.has(type)) {
+    return { type, params };
+  }
+
+  // 明确禁用旧格式：不再直接接受 type: 'filter' 或 'effects'
+  if (type === 'filter' || type === 'effects') {
+    throw new Error('INVALID_OPERATION: legacy type "filter"/"effects" is no longer supported, please use "filter-xxx" or "effects-xxx".');
+  }
+
+  // 支持完全平铺的连字符风格：
+  // - filter-sharpen  => { type: 'filter',  params: { filterType: 'sharpen', ... } }
+  // - effects-grayscale / effect-grayscale => { type: 'effects', params: { effectType: 'grayscale', ... } }
+  if (typeof type === 'string') {
+    if (type.startsWith('filter-')) {
+      const sub = type.slice('filter-'.length);
+      const mergedParams = {
+        ...(params || {}),
+        filterType: sub,
+        intensity: params.intensity !== undefined ? parseFloat(params.intensity) || 1 : 1,
+      };
+      return {
+        type: 'filter',
+        params: mergedParams,
+      };
+    }
+
+    if (type.startsWith('effects-') || type.startsWith('effect-')) {
+      const prefix = type.startsWith('effects-') ? 'effects-' : 'effect-';
+      const sub = type.slice(prefix.length);
+      const mergedParams = {
+        ...(params || {}),
+        effectType: sub,
+      };
+      return {
+        type: 'effects',
+        params: mergedParams,
+      };
+    }
+  }
+
+  // 尝试按平铺 effects 映射
+  if (FLAT_EFFECT_TYPE_MAP[type]) {
+    const meta = FLAT_EFFECT_TYPE_MAP[type];
+    const mergedParams = {
+      ...(meta.defaults || {}),
+      ...(params || {}),
+      effectType: meta.effectType,
+    };
+    return {
+      type: meta.baseType,
+      params: mergedParams,
+    };
+  }
+
+  // 尝试按平铺 filter 映射
+  if (FLAT_FILTER_TYPE_MAP[type]) {
+    const meta = FLAT_FILTER_TYPE_MAP[type];
+    const mergedParams = {
+      ...(meta.defaults || {}),
+      ...(params || {}),
+      filterType: meta.filterType,
+    };
+    return {
+      type: meta.baseType,
+      params: mergedParams,
+    };
+  }
+
+  // 兼容类似 "effects:grayscale" / "filter:blur" 的写法
+  if (type.includes(':')) {
+    const [group, sub] = type.split(':');
+    if (group === 'effects' && sub) {
+      return normalizeOperation(sub, params);
+    }
+    if (group === 'filter' && sub) {
+      const mergedParams = {
+        intensity: params.intensity !== undefined ? params.intensity : 1,
+        ...params,
+        filterType: sub,
+      };
+      return { type: 'filter', params: mergedParams };
+    }
+  }
+
+  // 未识别的类型，保持原样（让后面的 switch 抛出“类型不支持”的错误）
+  return { type, params };
+}
+
 const app = express();
 const PORT = process.env.PORT || 1513;
 
@@ -387,7 +574,11 @@ app.post('/api/process', async (req, res) => {
     try {
       for (let i = 0; i < operations.length; i++) {
         const operation = operations[i];
-        const { type, params = {} } = operation;
+        const rawType = operation.type;
+        const rawParams = operation.params || {};
+
+        // 统一归一化：支持基础类型 + 平铺小颗粒类型
+        const { type, params } = normalizeOperation(rawType, rawParams);
         
         if (!type) {
           throw new Error(`操作 ${i + 1} 缺少 type 字段`);
@@ -486,23 +677,44 @@ app.post('/api/process', async (req, res) => {
             });
             break;
             
-          case 'filter':
+          case 'filter': {
             command = await imagemagick.applyFilter(currentInputPath, outputPath, {
               filterType: params.filterType,
-              intensity: parseFloat(params.intensity) || 1
+              intensity: params.intensity !== undefined ? parseFloat(params.intensity) || 1 : 1,
             });
             break;
-            
-          case 'effects':
-            // effects 需要传递数组格式，每个效果是一个对象
-            const effect = {
-              type: params.effectType,
-              ...params
-            };
-            // 删除 effectType，因为已经转换为 type
-            delete effect.effectType;
-            command = await imagemagick.applyEffects(currentInputPath, outputPath, [effect]);
+          }
+
+          case 'effects': {
+            // effects 统一走数组形式，支持单个或多个效果
+            let effectsArray = [];
+
+            if (Array.isArray(params.effects) && params.effects.length > 0) {
+              // 显式传入 effects 数组
+              effectsArray = params.effects.map(e => {
+                const { effectType, type: t, ...rest } = e;
+                return {
+                  type: effectType || t,
+                  ...rest,
+                };
+              });
+            } else {
+              // 兼容旧格式：单个 effectType + 其它参数
+              const effect = {
+                type: params.effectType || params.type,
+              };
+
+              Object.keys(params).forEach(k => {
+                if (k === 'effectType' || k === 'type') return;
+                effect[k] = params[k];
+              });
+
+              effectsArray = [effect];
+            }
+
+            command = await imagemagick.applyEffects(currentInputPath, outputPath, effectsArray);
             break;
+          }
             
           default:
             throw new Error(`不支持的操作类型: ${type}`);
