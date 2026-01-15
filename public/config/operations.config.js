@@ -543,25 +543,14 @@
           filterType: 'grayscale'
         },
         ui: {
-          label: '灰度',
+          label: '快速灰度',
           icon: 'filter',
-          description: '快速转为灰度图片'
+          description: '快速转为灰度图片（使用默认灰度算法，无需额外参数）'
         },
         params: {
-          defaults: {
-            intensity: 1
-          },
-          fields: [
-            {
-              key: 'intensity',
-              label: '强度',
-              type: 'number',
-              min: 0,
-              max: 10,
-              step: 0.1,
-              hint: '滤镜效果的强度，范围：0-10，推荐：1-3（数值越大效果越明显）'
-            }
-          ]
+          // 灰度滤镜本身不提供可调参数，这里保留空配置
+          defaults: {},
+          fields: []
         }
       },
       {
@@ -603,13 +592,13 @@
           effectType: 'grayscale'
         },
         ui: {
-          label: '黑白化',
+          label: '灰度（可调算法）',
           icon: 'magic',
-          description: '将图片转换为黑白风格'
+          description: '使用多种灰度算法将图片转换为黑白风格，可调算法与强度'
         },
         params: {
           defaults: {
-            method: 'Rec601Luma',
+            method: 'Rec709',
             intensity: 100
           },
           fields: [
@@ -618,13 +607,15 @@
               label: '方法',
               type: 'select',
               options: [
-                { value: 'Rec601Luma', label: 'Rec601Luma' },
-                { value: 'Rec709Luma', label: 'Rec709Luma' },
-                { value: 'average', label: '平均值' },
-                { value: 'luminance', label: '亮度' },
-                { value: 'desaturate', label: '去饱和' }
+                { value: 'Rec601', label: 'Rec601（老电视标准，偏复古）' },
+                { value: 'Rec709', label: 'Rec709（高清视频标准，推荐）' },
+                { value: 'Rec2020', label: 'Rec2020（HDR 标准，更适合高亮图）' },
+                { value: 'Average', label: 'Average（RGB 平均值，风格化）' },
+                { value: 'Lightness', label: 'Lightness（(max+min)/2，对比更强）' },
+                { value: 'Luminance', label: 'Luminance（感知亮度，摄影友好）' },
+                { value: 'RMS', label: 'RMS（均方根，艺术效果）' }
               ],
-              hint: '黑白化转换方法，推荐：Rec709Luma（现代标准）或 average（简单平均）'
+              hint: '选择灰度算法：Rec709 适合大多数图片；Rec601 更适合老照片/复古；Average/Lightness 等适合风格化效果'
             },
             {
               key: 'intensity',
@@ -633,7 +624,7 @@
               unit: '%',
               min: 0,
               max: 100,
-              hint: '黑白化强度，范围：0-100，推荐：100（完全黑白化）'
+              hint: '灰度强度，范围：0-100，100 为完全灰度；低于 100 时会部分保留原有颜色'
             }
           ]
         }

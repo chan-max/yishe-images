@@ -928,7 +928,7 @@ function initApp() {
       // 获取效果名称
       function getEffectName(type) {
         const names = {
-          'grayscale': '黑白化',
+          'grayscale': '灰度（可调算法）',
           'negate': '负片',
           'sepia': '怀旧',
           'blur': '模糊',
@@ -971,7 +971,7 @@ function initApp() {
       // 获取效果官方术语
       function getEffectOfficialTerm(type) {
         const terms = {
-          'grayscale': 'Grayscale Conversion / 灰度转换',
+          'grayscale': 'Grayscale Conversion / 灰度转换（可选多种算法）',
           'negate': 'Color Negation / 颜色反转',
           'sepia': 'Sepia Tone / 棕褐色调',
           'blur': 'Gaussian Blur / 高斯模糊',
@@ -1014,7 +1014,7 @@ function initApp() {
       // 获取效果大众描述
       function getEffectDescription(type) {
         const descriptions = {
-          'grayscale': '将彩色图片转换为黑白图片，去除所有颜色信息，只保留明暗层次',
+          'grayscale': '将彩色图片转换为黑白图片，支持选择 Rec601 / Rec709 / Average 等不同灰度算法，适合从简单黑白到风格化的多种场景',
           'negate': '反转图片的所有颜色，就像照片底片一样，白色变黑色，红色变青色',
           'sepia': '给图片添加棕褐色调，营造复古、怀旧的老照片效果',
           'blur': '让图片变得模糊，细节不清晰，常用于突出主体或营造柔和氛围',
