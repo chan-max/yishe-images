@@ -117,7 +117,6 @@ function initApp() {
           watermark: false,
           effectsUrlUpload: false,
           effects: false,
-          chainProcessUrlUpload: false,
           chainProcess: false
         },
         // 链式处理相关状态
@@ -149,77 +148,107 @@ function initApp() {
         imageLoadError: false
       });
 
-      // 操作类型定义（前端使用“平铺的小颗粒操作”，不再展示大类前缀）
-      // 基础操作（标签不带“基础 / ”前缀）
-      const baseOperationTypes = [
-        { value: 'resize', baseType: 'resize', label: '调整大小', icon: 'expand', description: '缩放图片到指定尺寸，可以保持原始宽高比或强制拉伸到目标尺寸' },
-        { value: 'crop', baseType: 'crop', label: '矩形裁剪', icon: 'crop', description: '从图片中裁剪出一个矩形区域，需要指定起始坐标和裁剪区域的宽高' },
-        { value: 'shapeCrop', baseType: 'shapeCrop', label: '形状裁剪', icon: 'circle', description: '按照指定形状（圆形、椭圆、星形等）裁剪图片，保留形状内的内容' },
-        { value: 'rotate', baseType: 'rotate', label: '旋转', icon: 'redo', description: '按指定角度旋转图片，可以设置旋转后的背景颜色' },
-        { value: 'convert', baseType: 'convert', label: '格式转换', icon: 'exchange', description: '将图片转换为其他格式（JPG、PNG、GIF、WEBP、BMP等），可设置输出质量' },
-        { value: 'watermark', baseType: 'watermark', label: '水印', icon: 'tint', description: '在图片上添加文字或图片水印，可设置位置和透明度' },
-        { value: 'adjust', baseType: 'adjust', label: '颜色调整', icon: 'adjust', description: '调整图片的亮度、对比度和饱和度，用于改善图片的视觉效果' }
-      ];
+      // 操作类型定义（从配置文件加载）
+      // 将配置文件中的配置对象转换为操作类型对象
+      function configToOperationType(config) {
+        return {
+          value: config.meta.value,
+          baseType: config.meta.baseType,
+          label: config.ui.label,
+          icon: config.ui.icon,
+          description: config.ui.description,
+          // 保留 meta 用于向后兼容
+          meta: {
+            ...(config.meta.filterType ? { filterType: config.meta.filterType } : {}),
+            ...(config.meta.effectType ? { effectType: config.meta.effectType } : {})
+          },
+          // 保存完整的配置用于后续使用
+          _config: config
+        };
+      }
 
-      // 滤镜类（映射到后端 filter-* 扁平类型，标签不带“滤镜 / ”前缀）
-      const filterOperationTypes = [
-        { value: 'filter-blur', baseType: 'filter', label: '模糊', icon: 'filter', description: '应用模糊滤镜，让图片变得柔和', meta: { filterType: 'blur' } },
-        { value: 'filter-sharpen', baseType: 'filter', label: '锐化', icon: 'filter', description: '增强图片细节，让边缘更清晰', meta: { filterType: 'sharpen' } },
-        { value: 'filter-emboss', baseType: 'filter', label: '浮雕', icon: 'filter', description: '让图片产生立体浮雕效果', meta: { filterType: 'emboss' } },
-        { value: 'filter-edge', baseType: 'filter', label: '边缘检测', icon: 'filter', description: '只保留图片边缘轮廓，形成线条效果', meta: { filterType: 'edge' } },
-        { value: 'filter-charcoal', baseType: 'filter', label: '炭笔画', icon: 'filter', description: '将图片转为炭笔画风格', meta: { filterType: 'charcoal' } },
-        { value: 'filter-oil-painting', baseType: 'filter', label: '油画', icon: 'filter', description: '模拟油画效果', meta: { filterType: 'oil-painting' } },
-        { value: 'filter-sepia', baseType: 'filter', label: '怀旧', icon: 'filter', description: '快速加上棕褐色怀旧滤镜', meta: { filterType: 'sepia' } },
-        { value: 'filter-grayscale', baseType: 'filter', label: '灰度', icon: 'filter', description: '快速转为灰度图片', meta: { filterType: 'grayscale' } },
-        { value: 'filter-negate', baseType: 'filter', label: '负片', icon: 'filter', description: '将颜色反转，生成负片效果', meta: { filterType: 'negate' } }
-      ];
+      let baseOperationTypes, filterOperationTypes, effectOperationTypes, operationTypes;
+      
+      if (typeof window !== 'undefined' && window.ImageOperationsConfig) {
+        // 使用配置文件系统
+        const config = window.ImageOperationsConfig;
+        baseOperationTypes = (config.base || []).map(configToOperationType);
+        filterOperationTypes = (config.filters || []).map(configToOperationType);
+        effectOperationTypes = (config.effects || []).map(configToOperationType);
+        operationTypes = [
+          ...baseOperationTypes,
+          ...filterOperationTypes,
+          ...effectOperationTypes
+        ];
+      } else {
+        // 向后兼容：使用内联配置（临时方案，建议迁移到配置文件）
+        baseOperationTypes = [
+          { value: 'resize', baseType: 'resize', label: '调整大小', icon: 'expand', description: '缩放图片到指定尺寸，可以保持原始宽高比或强制拉伸到目标尺寸' },
+          { value: 'crop', baseType: 'crop', label: '矩形裁剪', icon: 'crop', description: '从图片中裁剪出一个矩形区域，需要指定起始坐标和裁剪区域的宽高' },
+          { value: 'shapeCrop', baseType: 'shapeCrop', label: '形状裁剪', icon: 'circle', description: '按照指定形状（圆形、椭圆、星形等）裁剪图片，保留形状内的内容' },
+          { value: 'rotate', baseType: 'rotate', label: '旋转', icon: 'redo', description: '按指定角度旋转图片，可以设置旋转后的背景颜色' },
+          { value: 'convert', baseType: 'convert', label: '格式转换', icon: 'exchange', description: '将图片转换为其他格式（JPG、PNG、GIF、WEBP、BMP等），可设置输出质量' },
+          { value: 'watermark', baseType: 'watermark', label: '水印', icon: 'tint', description: '在图片上添加文字或图片水印，可设置位置和透明度' },
+          { value: 'adjust', baseType: 'adjust', label: '颜色调整', icon: 'adjust', description: '调整图片的亮度、对比度和饱和度，用于改善图片的视觉效果' }
+        ];
 
-      // 效果类（映射到后端 effects-* 扁平类型，标签不带“效果 / ”前缀）
-      const effectOperationTypes = [
-        { value: 'effects-grayscale', baseType: 'effects', label: '黑白化', icon: 'magic', description: '将图片转换为黑白风格', meta: { effectType: 'grayscale' } },
-        { value: 'effects-sepia', baseType: 'effects', label: '怀旧', icon: 'magic', description: '添加棕褐色调的复古效果', meta: { effectType: 'sepia' } },
-        { value: 'effects-negate', baseType: 'effects', label: '负片', icon: 'magic', description: '反转所有颜色，形成底片效果', meta: { effectType: 'negate' } },
-        { value: 'effects-blur', baseType: 'effects', label: '模糊', icon: 'magic', description: '更高级的模糊效果，可配合半径等参数', meta: { effectType: 'blur' } },
-        { value: 'effects-gaussian-blur', baseType: 'effects', label: '高斯模糊', icon: 'magic', description: '使用高斯算法的平滑模糊', meta: { effectType: 'gaussian-blur' } },
-        { value: 'effects-motion-blur', baseType: 'effects', label: '运动模糊', icon: 'magic', description: '模拟物体快速运动产生的拖影效果', meta: { effectType: 'motion-blur' } },
-        { value: 'effects-sharpen', baseType: 'effects', label: '锐化', icon: 'magic', description: '增强图片细节的锐化效果', meta: { effectType: 'sharpen' } },
-        { value: 'effects-unsharp', baseType: 'effects', label: '非锐化遮罩', icon: 'magic', description: '更专业的锐化控制方式', meta: { effectType: 'unsharp' } },
-        { value: 'effects-charcoal', baseType: 'effects', label: '炭笔画', icon: 'magic', description: '生成炭笔素描风格图片', meta: { effectType: 'charcoal' } },
-        { value: 'effects-oil-painting', baseType: 'effects', label: '油画', icon: 'magic', description: '模拟油画笔触效果', meta: { effectType: 'oil-painting' } },
-        { value: 'effects-sketch', baseType: 'effects', label: '铅笔素描', icon: 'magic', description: '转换为铅笔素描风格', meta: { effectType: 'sketch' } },
-        { value: 'effects-emboss', baseType: 'effects', label: '浮雕', icon: 'magic', description: '立体浮雕艺术效果', meta: { effectType: 'emboss' } },
-        { value: 'effects-edge', baseType: 'effects', label: '边缘检测', icon: 'magic', description: '只保留轮廓边缘线条', meta: { effectType: 'edge' } },
-        { value: 'effects-posterize', baseType: 'effects', label: '海报化', icon: 'magic', description: '减少颜色数量，形成海报风格', meta: { effectType: 'posterize' } },
-        { value: 'effects-pixelate', baseType: 'effects', label: '像素化', icon: 'magic', description: '生成大颗粒像素风格', meta: { effectType: 'pixelate' } },
-        { value: 'effects-mosaic', baseType: 'effects', label: '马赛克', icon: 'magic', description: '用于打码或艺术马赛克效果', meta: { effectType: 'mosaic' } },
-        { value: 'effects-brightness', baseType: 'effects', label: '亮度', icon: 'magic', description: '单独调整亮度', meta: { effectType: 'brightness' } },
-        { value: 'effects-contrast', baseType: 'effects', label: '对比度', icon: 'magic', description: '单独调整对比度', meta: { effectType: 'contrast' } },
-        { value: 'effects-saturation', baseType: 'effects', label: '饱和度', icon: 'magic', description: '单独调整颜色饱和度', meta: { effectType: 'saturation' } },
-        { value: 'effects-hue', baseType: 'effects', label: '色相', icon: 'magic', description: '改变整体色调', meta: { effectType: 'hue' } },
-        { value: 'effects-colorize', baseType: 'effects', label: '着色', icon: 'magic', description: '给图片整体加上一种颜色', meta: { effectType: 'colorize' } },
-        { value: 'effects-tint', baseType: 'effects', label: '色调', icon: 'magic', description: '轻微地给图片染色', meta: { effectType: 'tint' } },
-        { value: 'effects-noise', baseType: 'effects', label: '噪点', icon: 'magic', description: '添加胶片颗粒感或数字噪点', meta: { effectType: 'noise' } },
-        { value: 'effects-despeckle', baseType: 'effects', label: '去噪', icon: 'magic', description: '移除噪点，让图片更干净', meta: { effectType: 'despeckle' } },
-        { value: 'effects-vignette', baseType: 'effects', label: '晕影', icon: 'magic', description: '在边缘添加暗角，让中心更突出', meta: { effectType: 'vignette' } },
-        { value: 'effects-solarize', baseType: 'effects', label: '曝光', icon: 'magic', description: '模拟过度曝光的反转效果', meta: { effectType: 'solarize' } },
-        { value: 'effects-swirl', baseType: 'effects', label: '漩涡', icon: 'magic', description: '让图片围绕中心扭曲', meta: { effectType: 'swirl' } },
-        { value: 'effects-wave', baseType: 'effects', label: '波浪', icon: 'magic', description: '让图片产生波纹扭曲', meta: { effectType: 'wave' } },
-        { value: 'effects-implode', baseType: 'effects', label: '内爆', icon: 'magic', description: '向中心收缩的扭曲效果', meta: { effectType: 'implode' } },
-        { value: 'effects-explode', baseType: 'effects', label: '爆炸', icon: 'magic', description: '向外膨胀的扭曲效果', meta: { effectType: 'explode' } },
-        { value: 'effects-spread', baseType: 'effects', label: '扩散', icon: 'magic', description: '随机扩散像素，形成特殊模糊', meta: { effectType: 'spread' } },
-        { value: 'effects-normalize', baseType: 'effects', label: '标准化', icon: 'magic', description: '自动增强整体对比度', meta: { effectType: 'normalize' } },
-        { value: 'effects-equalize', baseType: 'effects', label: '均衡化', icon: 'magic', description: '通过直方图均衡增强细节', meta: { effectType: 'equalize' } },
-        { value: 'effects-gamma', baseType: 'effects', label: '伽马校正', icon: 'magic', description: '只调整中间调的亮度', meta: { effectType: 'gamma' } },
-        { value: 'effects-threshold', baseType: 'effects', label: '阈值化', icon: 'magic', description: '转为黑白二值图', meta: { effectType: 'threshold' } },
-        { value: 'effects-quantize', baseType: 'effects', label: '颜色量化', icon: 'magic', description: '减少颜色数量，形成索引色风格', meta: { effectType: 'quantize' } }
-      ];
+        filterOperationTypes = [
+          { value: 'filter-blur', baseType: 'filter', label: '模糊', icon: 'filter', description: '应用模糊滤镜，让图片变得柔和', meta: { filterType: 'blur' } },
+          { value: 'filter-sharpen', baseType: 'filter', label: '锐化', icon: 'filter', description: '增强图片细节，让边缘更清晰', meta: { filterType: 'sharpen' } },
+          { value: 'filter-emboss', baseType: 'filter', label: '浮雕', icon: 'filter', description: '让图片产生立体浮雕效果', meta: { filterType: 'emboss' } },
+          { value: 'filter-edge', baseType: 'filter', label: '边缘检测', icon: 'filter', description: '只保留图片边缘轮廓，形成线条效果', meta: { filterType: 'edge' } },
+          { value: 'filter-charcoal', baseType: 'filter', label: '炭笔画', icon: 'filter', description: '将图片转为炭笔画风格', meta: { filterType: 'charcoal' } },
+          { value: 'filter-oil-painting', baseType: 'filter', label: '油画', icon: 'filter', description: '模拟油画效果', meta: { filterType: 'oil-painting' } },
+          { value: 'filter-sepia', baseType: 'filter', label: '怀旧', icon: 'filter', description: '快速加上棕褐色怀旧滤镜', meta: { filterType: 'sepia' } },
+          { value: 'filter-grayscale', baseType: 'filter', label: '灰度', icon: 'filter', description: '快速转为灰度图片', meta: { filterType: 'grayscale' } },
+          { value: 'filter-negate', baseType: 'filter', label: '负片', icon: 'filter', description: '将颜色反转，生成负片效果', meta: { filterType: 'negate' } }
+        ];
 
-      // 汇总所有可选操作（用于下拉选择和平铺小分类）
-      const operationTypes = [
-        ...baseOperationTypes,
-        ...filterOperationTypes,
-        ...effectOperationTypes
-      ];
+        effectOperationTypes = [
+          { value: 'effects-grayscale', baseType: 'effects', label: '黑白化', icon: 'magic', description: '将图片转换为黑白风格', meta: { effectType: 'grayscale' } },
+          { value: 'effects-sepia', baseType: 'effects', label: '怀旧', icon: 'magic', description: '添加棕褐色调的复古效果', meta: { effectType: 'sepia' } },
+          { value: 'effects-negate', baseType: 'effects', label: '负片', icon: 'magic', description: '反转所有颜色，形成底片效果', meta: { effectType: 'negate' } },
+          { value: 'effects-blur', baseType: 'effects', label: '模糊', icon: 'magic', description: '更高级的模糊效果，可配合半径等参数', meta: { effectType: 'blur' } },
+          { value: 'effects-gaussian-blur', baseType: 'effects', label: '高斯模糊', icon: 'magic', description: '使用高斯算法的平滑模糊', meta: { effectType: 'gaussian-blur' } },
+          { value: 'effects-motion-blur', baseType: 'effects', label: '运动模糊', icon: 'magic', description: '模拟物体快速运动产生的拖影效果', meta: { effectType: 'motion-blur' } },
+          { value: 'effects-sharpen', baseType: 'effects', label: '锐化', icon: 'magic', description: '增强图片细节的锐化效果', meta: { effectType: 'sharpen' } },
+          { value: 'effects-unsharp', baseType: 'effects', label: '非锐化遮罩', icon: 'magic', description: '更专业的锐化控制方式', meta: { effectType: 'unsharp' } },
+          { value: 'effects-charcoal', baseType: 'effects', label: '炭笔画', icon: 'magic', description: '生成炭笔素描风格图片', meta: { effectType: 'charcoal' } },
+          { value: 'effects-oil-painting', baseType: 'effects', label: '油画', icon: 'magic', description: '模拟油画笔触效果', meta: { effectType: 'oil-painting' } },
+          { value: 'effects-sketch', baseType: 'effects', label: '铅笔素描', icon: 'magic', description: '转换为铅笔素描风格', meta: { effectType: 'sketch' } },
+          { value: 'effects-emboss', baseType: 'effects', label: '浮雕', icon: 'magic', description: '立体浮雕艺术效果', meta: { effectType: 'emboss' } },
+          { value: 'effects-edge', baseType: 'effects', label: '边缘检测', icon: 'magic', description: '只保留轮廓边缘线条', meta: { effectType: 'edge' } },
+          { value: 'effects-posterize', baseType: 'effects', label: '海报化', icon: 'magic', description: '减少颜色数量，形成海报风格', meta: { effectType: 'posterize' } },
+          { value: 'effects-pixelate', baseType: 'effects', label: '像素化', icon: 'magic', description: '生成大颗粒像素风格', meta: { effectType: 'pixelate' } },
+          { value: 'effects-mosaic', baseType: 'effects', label: '马赛克', icon: 'magic', description: '用于打码或艺术马赛克效果', meta: { effectType: 'mosaic' } },
+          { value: 'effects-brightness', baseType: 'effects', label: '亮度', icon: 'magic', description: '单独调整亮度', meta: { effectType: 'brightness' } },
+          { value: 'effects-contrast', baseType: 'effects', label: '对比度', icon: 'magic', description: '单独调整对比度', meta: { effectType: 'contrast' } },
+          { value: 'effects-saturation', baseType: 'effects', label: '饱和度', icon: 'magic', description: '单独调整颜色饱和度', meta: { effectType: 'saturation' } },
+          { value: 'effects-hue', baseType: 'effects', label: '色相', icon: 'magic', description: '改变整体色调', meta: { effectType: 'hue' } },
+          { value: 'effects-colorize', baseType: 'effects', label: '着色', icon: 'magic', description: '给图片整体加上一种颜色', meta: { effectType: 'colorize' } },
+          { value: 'effects-tint', baseType: 'effects', label: '色调', icon: 'magic', description: '轻微地给图片染色', meta: { effectType: 'tint' } },
+          { value: 'effects-noise', baseType: 'effects', label: '噪点', icon: 'magic', description: '添加胶片颗粒感或数字噪点', meta: { effectType: 'noise' } },
+          { value: 'effects-despeckle', baseType: 'effects', label: '去噪', icon: 'magic', description: '移除噪点，让图片更干净', meta: { effectType: 'despeckle' } },
+          { value: 'effects-vignette', baseType: 'effects', label: '晕影', icon: 'magic', description: '在边缘添加暗角，让中心更突出', meta: { effectType: 'vignette' } },
+          { value: 'effects-solarize', baseType: 'effects', label: '曝光', icon: 'magic', description: '模拟过度曝光的反转效果', meta: { effectType: 'solarize' } },
+          { value: 'effects-swirl', baseType: 'effects', label: '漩涡', icon: 'magic', description: '让图片围绕中心扭曲', meta: { effectType: 'swirl' } },
+          { value: 'effects-wave', baseType: 'effects', label: '波浪', icon: 'magic', description: '让图片产生波纹扭曲', meta: { effectType: 'wave' } },
+          { value: 'effects-implode', baseType: 'effects', label: '内爆', icon: 'magic', description: '向中心收缩的扭曲效果', meta: { effectType: 'implode' } },
+          { value: 'effects-explode', baseType: 'effects', label: '爆炸', icon: 'magic', description: '向外膨胀的扭曲效果', meta: { effectType: 'explode' } },
+          { value: 'effects-spread', baseType: 'effects', label: '扩散', icon: 'magic', description: '随机扩散像素，形成特殊模糊', meta: { effectType: 'spread' } },
+          { value: 'effects-normalize', baseType: 'effects', label: '标准化', icon: 'magic', description: '自动增强整体对比度', meta: { effectType: 'normalize' } },
+          { value: 'effects-equalize', baseType: 'effects', label: '均衡化', icon: 'magic', description: '通过直方图均衡增强细节', meta: { effectType: 'equalize' } },
+          { value: 'effects-gamma', baseType: 'effects', label: '伽马校正', icon: 'magic', description: '只调整中间调的亮度', meta: { effectType: 'gamma' } },
+          { value: 'effects-threshold', baseType: 'effects', label: '阈值化', icon: 'magic', description: '转为黑白二值图', meta: { effectType: 'threshold' } },
+          { value: 'effects-quantize', baseType: 'effects', label: '颜色量化', icon: 'magic', description: '减少颜色数量，形成索引色风格', meta: { effectType: 'quantize' } }
+        ];
+
+        operationTypes = [
+          ...baseOperationTypes,
+          ...filterOperationTypes,
+          ...effectOperationTypes
+        ];
+      }
 
       const menuItems = [
         { id: 'home', name: '首页', icon: 'home' },
@@ -1393,38 +1422,43 @@ function initApp() {
 
       // ========== 链式处理相关函数 ==========
       
-      // URL 上传处理
-      async function handleChainProcessUrlUpload() {
-        if (!state.chainProcessImageUrl || !state.chainProcessImageUrl.trim()) {
-          addDebugLog('请输入有效的图片 URL', 'error');
-          return;
-        }
-
-        const url = state.chainProcessImageUrl.trim();
-        state.loading.chainProcessUrlUpload = true;
-        addDebugLog(`开始下载图片: ${url}`, 'info');
-        
+      // 检查是否是有效的 HTTP URL
+      function isValidHttpUrl(str) {
         try {
-          const { data } = await axios.post(`${BASE_URL}/api/upload`, { url });
-          if (data.success) {
-            state.chainProcessImage = `${BASE_URL}${data.path}`;
-            state.chainProcessFilename = data.filename;
-            addDebugLog('图片下载成功', 'success');
-            state.chainProcessImageUrl = '';
-            loadChainProcessImageInfo();
-          } else {
-            addDebugLog(`下载失败: ${data.error}`, 'error');
-          }
-        } catch (e) {
-          addDebugLog(`下载错误: ${e.response?.data?.error || e.message}`, 'error');
-        } finally {
-          state.loading.chainProcessUrlUpload = false;
+          const url = new URL(str);
+          return url.protocol === 'http:' || url.protocol === 'https:';
+        } catch {
+          return false;
         }
       }
       
-      // 加载图片信息
+      // 更新图片预览（当 URL 或文件名改变时）
+      function updateChainProcessImagePreview() {
+        if (!state.chainProcessImageUrl || !state.chainProcessImageUrl.trim()) {
+          state.chainProcessImage = null;
+          state.chainProcessFilename = null;
+          state.chainProcessImageInfo = null;
+          return;
+        }
+        
+        const urlOrFilename = state.chainProcessImageUrl.trim();
+        
+        // 如果是 HTTP URL，直接使用作为预览
+        if (isValidHttpUrl(urlOrFilename)) {
+          state.chainProcessImage = urlOrFilename;
+          state.chainProcessFilename = urlOrFilename; // 用于后续处理
+        } else {
+          // 本地文件名，从 uploads 目录加载预览
+          state.chainProcessImage = `${BASE_URL}/uploads/${urlOrFilename}`;
+          state.chainProcessFilename = urlOrFilename;
+          // 尝试加载图片信息
+          loadChainProcessImageInfo();
+        }
+      }
+      
+      // 加载图片信息（仅本地文件）
       async function loadChainProcessImageInfo() {
-        if (!state.chainProcessFilename) return;
+        if (!state.chainProcessFilename || isValidHttpUrl(state.chainProcessFilename)) return;
         
         try {
           const { data } = await axios.post(`${BASE_URL}/api/info`, {
@@ -1660,6 +1694,15 @@ function initApp() {
       
       // 获取默认参数（不在 params 中保存 effectType / filterType，效果类型只由 type 表达）
       function getDefaultParams(type, meta) {
+        // 如果使用配置系统，尝试从配置中获取默认参数
+        if (meta && meta._config && meta._config.params) {
+          const configParams = { ...meta._config.params.defaults };
+          if (configParams && Object.keys(configParams).length > 0) {
+            return configParams;
+          }
+        }
+        
+        // 向后兼容：使用内联默认值
         const baseDefaults = {
           resize: { width: 800, height: 600, maintainAspectRatio: true, quality: 90 },
           crop: { x: 0, y: 0, width: 500, height: 500 },
@@ -1678,6 +1721,20 @@ function initApp() {
         return defaults;
       }
 
+      // 判断是否为 filter 类型操作
+      function isFilterOperation(operation) {
+        if (!operation) return false;
+        const key = operation.subtypeKey || operation.type || '';
+        return typeof key === 'string' && key.startsWith('filter-');
+      }
+      
+      // 判断是否为 effects 类型操作
+      function isEffectsOperation(operation) {
+        if (!operation) return false;
+        const key = operation.subtypeKey || operation.type || '';
+        return typeof key === 'string' && (key.startsWith('effects-') || key.startsWith('effect-'));
+      }
+      
       // 根据操作获取效果 key（例如 'effects-grayscale' -> 'grayscale'）
       function getEffectKeyFromOperation(operation) {
         if (!operation) return '';
@@ -1716,9 +1773,10 @@ function initApp() {
       
       // 获取请求负载（实时预览）
       function getRequestPayload() {
-        if (!state.chainProcessFilename) return null;
+        if (!state.chainProcessImageUrl || !state.chainProcessImageUrl.trim()) return null;
+        const urlOrFilename = state.chainProcessImageUrl.trim();
         return {
-          filename: state.chainProcessFilename,
+          filename: urlOrFilename, // 可以是本地文件名或网络 URL
           operations: state.operationChain.map(op => {
             // 扁平类型优先：filter-sharpen / effects-grayscale 等
             const type = op.subtypeKey || op.type;
@@ -1732,8 +1790,8 @@ function initApp() {
       
       // 执行链式处理
       async function handleChainProcess() {
-        if (!state.chainProcessFilename) {
-          addDebugLog('请先上传图片', 'error');
+        if (!state.chainProcessImageUrl || !state.chainProcessImageUrl.trim()) {
+          addDebugLog('请输入图片地址（文件名或 URL）', 'error');
           return;
         }
         
@@ -1773,6 +1831,8 @@ function initApp() {
       // 使用处理结果作为新源
       function useChainProcessAsSource() {
         if (state.chainProcessResultImage && state.chainProcessResultFilename) {
+          // 使用处理后的文件名（本地文件）
+          state.chainProcessImageUrl = state.chainProcessResultFilename;
           state.chainProcessImage = state.chainProcessResultImage;
           state.chainProcessFilename = state.chainProcessResultFilename;
           state.chainProcessResultImage = null;
@@ -1837,6 +1897,8 @@ function initApp() {
         clearEffects,
         getEffectName,
         getEffectKeyFromOperation,
+        isFilterOperation,
+        isEffectsOperation,
         updateEffectParams,
         needsRadius,
         needsSigma,
@@ -1867,7 +1929,7 @@ function initApp() {
         handleEffects,
         useEffectsAsSource,
         // 链式处理相关函数
-        handleChainProcessUrlUpload,
+        updateChainProcessImagePreview,
         loadChainProcessImageInfo,
         addOperation,
         addSelectedOperation,

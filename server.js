@@ -251,15 +251,30 @@ const upload = multer({
 });
 
 /**
- * 下载网络资源到 template 目录
+ * 下载网络资源到指定目录
+ * @param {string} url - 网络图片 URL
+ * @param {string} targetDir - 目标目录
+ * @returns {Promise<{filename: string, path: string, size: number, originalUrl: string}>}
  */
-async function downloadFromUrl(url) {
+async function downloadFromUrl(url, targetDir = templateDir) {
   return new Promise((resolve, reject) => {
     try {
       const urlObj = new URL(url);
+      
+      // 只支持 http 和 https
+      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+        reject(new Error(`不支持的协议: ${urlObj.protocol}，仅支持 http:// 和 https://`));
+        return;
+      }
+      
       const protocol = urlObj.protocol === 'https:' ? https : http;
       
-      protocol.get(url, (response) => {
+      protocol.get(url, {
+        timeout: 30000, // 30秒超时
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      }, (response) => {
         if (response.statusCode !== 200) {
           reject(new Error(`下载失败: HTTP ${response.statusCode}`));
           return;
@@ -282,13 +297,19 @@ async function downloadFromUrl(url) {
             'image/tiff': '.tiff',
             'image/x-icon': '.ico'
           };
-          ext = mimeToExt[contentType] || '.jpg';
+          const mimeType = contentType ? contentType.split(';')[0].trim() : '';
+          ext = mimeToExt[mimeType] || '.jpg';
+        }
+        
+        // 确保扩展名以 . 开头
+        if (!ext.startsWith('.')) {
+          ext = '.' + ext;
         }
         
         // 生成唯一文件名
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const filename = `downloaded_${uniqueSuffix}${ext}`;
-        const filePath = path.join(templateDir, filename);
+        const filePath = path.join(targetDir, filename);
         
         const fileStream = fs.createWriteStream(filePath);
         response.pipe(fileStream);
@@ -311,11 +332,25 @@ async function downloadFromUrl(url) {
         });
       }).on('error', (err) => {
         reject(err);
+      }).on('timeout', () => {
+        reject(new Error('下载超时'));
       });
     } catch (error) {
       reject(new Error(`无效的 URL: ${error.message}`));
     }
   });
+}
+
+/**
+ * 检查字符串是否是有效的 HTTP/HTTPS URL
+ */
+function isValidHttpUrl(str) {
+  try {
+    const url = new URL(str);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -377,25 +412,8 @@ app.post('/api/upload', async (req, res) => {
       }
       
       try {
-        // 下载文件到 template 目录
-        const downloadResult = await downloadFromUrl(url);
-        
-        // 将文件从 template 移动到 uploads 目录
-        // 注意：在 Docker 中，如果 template 和 uploads 是不同的挂载点，
-        // 不能使用 rename，需要使用 copy + unlink
-        const finalPath = path.join(uploadsDir, downloadResult.filename);
-        try {
-          // 尝试使用 rename（同一文件系统内更快）
-          fs.renameSync(downloadResult.path, finalPath);
-        } catch (renameError) {
-          // 如果 rename 失败（跨设备错误），使用 copy + unlink
-          if (renameError.code === 'EXDEV' || renameError.message.includes('cross-device')) {
-            fs.copyFileSync(downloadResult.path, finalPath);
-            fs.unlinkSync(downloadResult.path);
-          } else {
-            throw renameError;
-          }
-        }
+        // 直接下载到 uploads 目录
+        const downloadResult = await downloadFromUrl(url, uploadsDir);
         
         res.json({
           success: true,
@@ -497,7 +515,7 @@ app.post('/api/info', async (req, res) => {
  *   post:
  *     summary: 链式图片处理（统一接口）
  *     tags: [Process]
- *     description: 支持按顺序执行多个图片处理操作，如调整大小、裁剪、旋转、水印、效果等
+ *     description: 支持按顺序执行多个图片处理操作，如调整大小、裁剪、旋转、水印、效果等。支持本地文件和网络图片 URL
  *     requestBody:
  *       required: true
  *       content:
@@ -510,7 +528,15 @@ app.post('/api/info', async (req, res) => {
  *             properties:
  *               filename:
  *                 type: string
- *                 description: 已上传的文件名
+ *                 description: 已上传的文件名或网络图片 URL（支持 http:// 和 https://）
+ *                 example: "1234567890-123456789.jpg"
+ *                 oneOf:
+ *                   - type: string
+ *                     description: 本地文件名（位于 uploads 目录）
+ *                   - type: string
+ *                     format: uri
+ *                     description: 网络图片 URL（自动下载到临时目录）
+ *                     example: "https://example.com/image.jpg"
  *               operations:
  *                 type: array
  *                 description: 操作数组，按顺序执行
@@ -538,18 +564,33 @@ app.post('/api/info', async (req, res) => {
  *                   type: boolean
  *                 outputFile:
  *                   type: string
+ *                   description: 输出文件名
  *                 path:
  *                   type: string
+ *                   description: 输出文件路径
  *                 commands:
  *                   type: array
  *                   items:
  *                     type: string
+ *                   description: 执行的 ImageMagick 命令列表
+ *                 source:
+ *                   type: string
+ *                   enum: [local, url]
+ *                   description: 图片来源（本地文件或网络 URL）
+ *                 originalFilename:
+ *                   type: string
+ *                   description: 原始文件名或 URL
  *       400:
- *         description: 参数错误
+ *         description: 参数错误或下载失败
+ *       404:
+ *         description: 文件不存在（仅本地文件）
  *       500:
  *         description: 处理失败
  */
 app.post('/api/process', async (req, res) => {
+  let downloadedFileInfo = null; // 记录是否下载了网络图片
+  let actualFilename = null; // 实际使用的文件名
+  
   try {
     const { filename, operations } = req.body;
     
@@ -561,9 +602,28 @@ app.post('/api/process', async (req, res) => {
       return res.status(400).json({ error: 'operations 必须是非空数组' });
     }
     
-    const inputPath = path.join(uploadsDir, filename);
-    if (!fs.existsSync(inputPath)) {
-      return res.status(404).json({ error: '文件不存在' });
+    // 检查 filename 是否是网络 URL
+    let inputPath;
+    if (isValidHttpUrl(filename)) {
+      // 如果是网络 URL，下载到 uploads 目录
+      try {
+        console.log(`检测到网络图片 URL，开始下载: ${filename}`);
+        downloadedFileInfo = await downloadFromUrl(filename, uploadsDir);
+        actualFilename = downloadedFileInfo.filename;
+        inputPath = downloadedFileInfo.path;
+        console.log(`网络图片下载成功: ${actualFilename}`);
+      } catch (downloadError) {
+        return res.status(400).json({ 
+          error: `下载网络图片失败: ${downloadError.message}` 
+        });
+      }
+    } else {
+      // 本地文件名，从 uploads 目录读取
+      actualFilename = filename;
+      inputPath = path.join(uploadsDir, filename);
+      if (!fs.existsSync(inputPath)) {
+        return res.status(404).json({ error: '文件不存在' });
+      }
     }
     
     // 链式处理：每个操作的输出作为下一个操作的输入
@@ -746,13 +806,26 @@ app.post('/api/process', async (req, res) => {
         }
       });
       
+      // 如果是从网络下载的图片，可以选择是否清理
+      // 这里暂时保留，如果需要自动清理可以取消注释下面的代码
+      // if (downloadedFileInfo && fs.existsSync(downloadedFileInfo.path)) {
+      //   try {
+      //     fs.unlinkSync(downloadedFileInfo.path);
+      //     console.log(`已清理下载的临时文件: ${downloadedFileInfo.filename}`);
+      //   } catch (e) {
+      //     console.warn(`清理下载的临时文件失败: ${downloadedFileInfo.path}`, e.message);
+      //   }
+      // }
+      
       const outputFilename = path.basename(currentInputPath);
       
       res.json({
         success: true,
         outputFile: outputFilename,
         path: `/output/${outputFilename}`,
-        commands: commands
+        commands: commands,
+        source: downloadedFileInfo ? 'url' : 'local',
+        originalFilename: downloadedFileInfo ? downloadedFileInfo.originalUrl : actualFilename
       });
       
     } catch (error) {
@@ -766,6 +839,16 @@ app.post('/api/process', async (req, res) => {
           }
         }
       });
+      
+      // 如果下载失败，清理已下载的文件
+      if (downloadedFileInfo && fs.existsSync(downloadedFileInfo.path)) {
+        try {
+          fs.unlinkSync(downloadedFileInfo.path);
+        } catch (e) {
+          // 忽略清理错误
+        }
+      }
+      
       throw error;
     }
   } catch (error) {

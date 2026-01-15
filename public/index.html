@@ -681,27 +681,24 @@
               </div>
             </h1>
 
-            <!-- 上传区域 -->
+            <!-- 图片输入区域 -->
             <div class="ui segment compact-segment">
-              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">上传图片</h3>
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">图片输入</h3>
               
-              <!-- 统一输入框 -->
               <div class="ui form">
                 <div class="field" style="margin-bottom: 0.75rem;">
-                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（网络 URL）</label>
-                  <div class="ui action input" style="font-size: 0.9em;">
-                    <input type="text" v-model="state.chainProcessImageUrl" placeholder="输入网络图片 URL" @keyup.enter="handleChainProcessUrlUpload" style="font-size: 0.9em;">
-                    <button class="ui primary button" :class="{ loading: state.loading.chainProcessUrlUpload }" @click="handleChainProcessUrlUpload" :disabled="!state.chainProcessImageUrl || state.loading.chainProcessUrlUpload" style="font-size: 0.85em; padding: 0.5em 0.75em;">
-                      <i class="download icon"></i> 加载
-                    </button>
-                  </div>
-                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">支持 JPG, PNG, GIF, BMP, WEBP, SVG, TIFF</p>
+                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（支持本地文件名或网络 URL）</label>
+                  <input type="text" v-model="state.chainProcessImageUrl" placeholder="输入文件名（如：1234567890-123456789.jpg）或网络 URL（如：https://example.com/image.jpg）" @keyup.enter="handleChainProcess" @input="updateChainProcessImagePreview" style="font-size: 0.9em;">
+                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">
+                    支持本地文件名（位于 uploads 目录）或网络图片 URL（自动下载）。格式：JPG, PNG, GIF, BMP, WEBP, SVG, TIFF
+                  </p>
                 </div>
               </div>
+              
               <div v-if="state.chainProcessImage" style="margin-top: 0.75rem;">
                 <img :src="state.chainProcessImage" class="image-preview" alt="当前图片">
                 <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
-                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>文件名:</strong> {{ state.chainProcessFilename }}</p>
+                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>当前图片:</strong> {{ state.chainProcessImageUrl || state.chainProcessFilename }}</p>
                   <p v-if="state.chainProcessImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;">
                     <strong>尺寸:</strong> {{ state.chainProcessImageInfo.width }} × {{ state.chainProcessImageInfo.height }} px
                   </p>
@@ -964,14 +961,8 @@
                       </div>
                     </template>
                     
-                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'filter'">
-                      <div class="field">
-                        <label>滤镜</label>
-                        <div style="padding: 0.5rem 0.75rem; border: 1px solid #e0e0e0; border-radius: 4px; background: #f9f9f9;">
-                          {{ getOperationLabel(state.operationChain[state.selectedOperationIndex]) }}
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">该操作已固定为上述滤镜，如需其他滤镜，请在上方添加新的操作。</p>
-                      </div>
+                    <!-- filter 类型的操作（如 filter-blur, filter-sharpen 等） -->
+                    <template v-else-if="isFilterOperation(state.operationChain[state.selectedOperationIndex])">
                       <div class="field">
                         <label>强度</label>
                         <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.intensity" min="0" max="10" step="0.1">
@@ -979,15 +970,8 @@
                       </div>
                     </template>
                     
-                    <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'effects'">
-                      <div class="field">
-                        <label>效果</label>
-                        <div style="padding: 0.5rem 0.75rem; border: 1px solid #e0e0e0; border-radius: 4px; background: #f9f9f9;">
-                          {{ getEffectName(getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex])) || getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex]) || '未知效果' }}
-                        </div>
-                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">该操作已固定为上述效果，如需其他效果，请在上方添加新的操作。</p>
-                      </div>
-                      
+                    <!-- effects 类型的操作（如 effects-grayscale, effects-blur 等） -->
+                    <template v-else-if="isEffectsOperation(state.operationChain[state.selectedOperationIndex])">
                       <!-- 根据效果类型显示不同参数 -->
                       <template v-if="getEffectKeyFromOperation(state.operationChain[state.selectedOperationIndex])">
                         <!-- 需要 radius 和 sigma 的效果 -->
@@ -1409,6 +1393,11 @@
 
   <!-- Semantic UI JS -->
   <script src="/lib/semantic.js"></script>
+  
+  <!-- 操作配置统一文件 -->
+  <script src="/config/operations.config.js"></script>
+  
+  <!-- 主应用脚本 -->
   <script src="app.js"></script>
 </body>
 </html>
