@@ -334,50 +334,6 @@
             }
           ]
         }
-      },
-      {
-        meta: {
-          value: 'adjust',
-          baseType: 'adjust'
-        },
-        ui: {
-          label: '颜色调整',
-          icon: 'adjust',
-          description: '调整图片的亮度、对比度和饱和度，用于改善图片的视觉效果'
-        },
-        params: {
-          defaults: {
-            brightness: 0,
-            contrast: 0,
-            saturation: 0
-          },
-          fields: [
-            {
-              key: 'brightness',
-              label: '亮度',
-              type: 'number',
-              min: -100,
-              max: 100,
-              hint: '调整图片亮度，范围：-100到100，0为原始亮度，推荐：-20到20（负数变暗，正数变亮）'
-            },
-            {
-              key: 'contrast',
-              label: '对比度',
-              type: 'number',
-              min: -100,
-              max: 100,
-              hint: '调整图片对比度，范围：-100到100，0为原始对比度，推荐：-20到20（负数降低，正数增强）'
-            },
-            {
-              key: 'saturation',
-              label: '饱和度',
-              type: 'number',
-              min: -100,
-              max: 100,
-              hint: '调整图片色彩饱和度，范围：-100到100，0为原始饱和度，推荐：-50到50（负数变灰，正数更鲜艳）'
-            }
-          ]
-        }
       }
     ],
 
