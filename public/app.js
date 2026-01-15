@@ -172,14 +172,21 @@ function initApp() {
       if (typeof window !== 'undefined' && window.ImageOperationsConfig) {
         // 使用配置文件系统
         const config = window.ImageOperationsConfig;
-        baseOperationTypes = (config.base || []).map(configToOperationType);
-        filterOperationTypes = (config.filters || []).map(configToOperationType);
-        effectOperationTypes = (config.effects || []).map(configToOperationType);
-        operationTypes = [
-          ...baseOperationTypes,
-          ...filterOperationTypes,
-          ...effectOperationTypes
-        ];
+        
+        // 优先使用新的平铺结构 operations
+        if (config.operations && Array.isArray(config.operations)) {
+          operationTypes = config.operations.map(configToOperationType);
+        } else {
+          // 向后兼容：如果不存在 operations，尝试使用旧的分类结构
+          baseOperationTypes = (config.base || []).map(configToOperationType);
+          filterOperationTypes = (config.filters || []).map(configToOperationType);
+          effectOperationTypes = (config.effects || []).map(configToOperationType);
+          operationTypes = [
+            ...baseOperationTypes,
+            ...filterOperationTypes,
+            ...effectOperationTypes
+          ];
+        }
       } else {
         // 向后兼容：使用内联配置（临时方案，建议迁移到配置文件）
         baseOperationTypes = [

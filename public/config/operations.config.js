@@ -6,12 +6,15 @@
  * - meta: 操作元数据（value, baseType, filterType/effectType）
  * - ui: UI 配置（label, icon, description）
  * - params: 参数配置（defaults 默认值, fields 表单字段定义）
+ * 
+ * 注意：所有操作已平铺到一个数组中，不再区分 base、filters、effects
+ * 因为每个操作最终都会对应生成一条 ImageMagick 命令
  */
 
 (function(global) {
   global.ImageOperationsConfig = {
-    // 基础操作配置
-    base: [
+    // 所有操作配置（平铺结构，不再分类）
+    operations: [
       {
         meta: {
           value: 'resize',
@@ -334,11 +337,7 @@
             }
           ]
         }
-      }
-    ],
-
-    // 滤镜操作配置
-    filters: [
+      },
       {
         meta: {
           value: 'filter-blur',
@@ -580,11 +579,7 @@
             }
           ]
         }
-      }
-    ],
-
-    // 效果操作配置
-    effects: [
+      },
       {
         meta: {
           value: 'effects-grayscale',
