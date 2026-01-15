@@ -520,7 +520,7 @@
         },
         params: {
           defaults: {
-            intensity: 1
+            intensity: 80
           },
           fields: [
             {
@@ -528,9 +528,10 @@
               label: '强度',
               type: 'number',
               min: 0,
-              max: 10,
-              step: 0.1,
-              hint: '滤镜效果的强度，范围：0-10，推荐：1-3（数值越大效果越明显）'
+              max: 100,
+              step: 1,
+              unit: '%',
+              hint: '怀旧棕褐色效果强度，范围：0-100%，推荐：60-90（数值越大效果越明显）'
             }
           ]
         }
