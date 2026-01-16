@@ -3,9 +3,11 @@
   "version": "0.0.8",
   "description": "ImageMagick Web UI - 全面的图像处理工具",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "mcp": "node mcp-server.js"
   },
   "keywords": [
     "imagemagick",

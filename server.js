@@ -1,15 +1,20 @@
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const https = require('https');
-const http = require('http');
-const { URL } = require('url');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./swagger');
-const imagemagick = require('./lib/imagemagick');
+import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import https from 'https';
+import http from 'http';
+import { URL } from 'url';
+import { fileURLToPath } from 'url';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './swagger.js';
+import imagemagick from './lib/imagemagick.js';
+
+// ES Module 中获取 __dirname 的等价方式
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * 将前端传入的“平铺小颗粒操作类型”归一化为内部基础类型
@@ -818,11 +823,17 @@ app.post('/api/process', async (req, res) => {
       // }
       
       const outputFilename = path.basename(currentInputPath);
+      const outputPath = `/output/${outputFilename}`;
+      
+      // 构建完整的图片 URL
+      const baseUrl = req.protocol + '://' + req.get('host');
+      const outputUrl = `${baseUrl}${outputPath}`;
       
       res.json({
         success: true,
         outputFile: outputFilename,
-        path: `/output/${outputFilename}`,
+        path: outputPath,
+        url: outputUrl,
         commands: commands,
         source: downloadedFileInfo ? 'url' : 'local',
         originalFilename: downloadedFileInfo ? downloadedFileInfo.originalUrl : actualFilename
