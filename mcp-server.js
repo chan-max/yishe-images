@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
+import { z } from "zod/v4";
 import http from "http";
 import https from "https";
 
@@ -447,7 +447,289 @@ const COMPLETE_EXAMPLE = {
 };
 
 // 生成操作示例描述字符串
-const OPERATIONS_EXAMPLE = JSON.stringify(COMPLETE_EXAMPLE, null, 2);
+const OPERATIONS_EXAMPLE_SHORT = `重要：AI 需要根据用户的自然语言描述，自动生成对应的 operations 配置。
+
+示例 1 - 用户描述："把图片调整到 800x600，然后转为灰度图"
+AI 应生成：
+{
+  "imageUrl": "https://example.com/image.jpg",
+  "operations": [
+    { "type": "resize", "params": { "width": 800, "height": 600, "maintainAspectRatio": true, "quality": 90 } },
+    { "type": "effects-grayscale", "params": { "method": "Rec709", "intensity": 100 } }
+  ]
+}
+
+示例 2 - 用户描述："裁剪图片左上角 500x500 的区域，然后旋转 90 度"
+AI 应生成：
+{
+  "imageUrl": "https://example.com/image.jpg",
+  "operations": [
+    { "type": "crop", "params": { "x": 0, "y": 0, "width": 500, "height": 500 } },
+    { "type": "rotate", "params": { "degrees": 90, "backgroundColor": "transparent" } }
+  ]
+}
+
+示例 3 - 用户描述："添加模糊效果，强度适中"
+AI 应生成：
+{
+  "imageUrl": "https://example.com/image.jpg",
+  "operations": [
+    { "type": "effects-blur", "params": { "radius": 5, "sigma": 5 } }
+  ]
+}`;
+
+/**
+ * 根据自然语言描述自动生成操作配置
+ */
+function parseOperationDescription(description) {
+  const operations = [];
+  const desc = description.toLowerCase().trim();
+  
+  // 解析多个操作（用"然后"、"接着"、"再"等连接词分隔）
+  const parts = desc.split(/(?:然后|接着|再|之后|，|,)/).map(p => p.trim()).filter(p => p);
+  
+  for (const part of parts) {
+    // 1. 调整大小 resize
+    const resizeMatch = part.match(/(?:调整|缩放|改为|改成|设置为|设为|改成|改为)\s*(?:到|为)?\s*(\d+)\s*[x×*]\s*(\d+)/i);
+    if (resizeMatch) {
+      const width = parseInt(resizeMatch[1]);
+      const height = parseInt(resizeMatch[2]);
+      const maintainAspectRatio = !part.includes('强制') && !part.includes('拉伸');
+      operations.push({
+        type: "resize",
+        params: {
+          width,
+          height,
+          maintainAspectRatio,
+          quality: 90
+        }
+      });
+      continue;
+    }
+    
+    // 2. 灰度/黑白 effects-grayscale
+    if (part.match(/(?:灰度|黑白|去色|灰阶|变成黑白|转为黑白|转为灰度|变成灰度|让.*?变成.*?黑白|让.*?变成.*?灰度)/)) {
+      operations.push({
+        type: "effects-grayscale",
+        params: {
+          method: "Rec709",
+          intensity: 100
+        }
+      });
+      continue;
+    }
+    
+    // 3. 裁剪 crop
+    const cropMatch = part.match(/(?:裁剪|截取|切图|剪裁).*?(\d+)\s*[x×*]\s*(\d+)/i);
+    if (cropMatch) {
+      const width = parseInt(cropMatch[1]);
+      const height = parseInt(cropMatch[2]);
+      let x = 0, y = 0;
+      if (part.includes('左上')) {
+        x = 0; y = 0;
+      } else if (part.includes('右上')) {
+        x = null; y = 0;
+      } else if (part.includes('左下')) {
+        x = 0; y = null;
+      } else if (part.includes('右下')) {
+        x = null; y = null;
+      } else if (part.includes('居中') || part.includes('中心')) {
+        x = null; y = null;
+      }
+      operations.push({
+        type: "crop",
+        params: { x, y, width, height }
+      });
+      continue;
+    }
+    
+    // 4. 旋转 rotate
+    const rotateMatch = part.match(/(?:旋转|转动)\s*(?:到|为)?\s*(\d+)\s*度/i);
+    if (rotateMatch) {
+      const degrees = parseInt(rotateMatch[1]);
+      operations.push({
+        type: "rotate",
+        params: {
+          degrees,
+          backgroundColor: "transparent"
+        }
+      });
+      continue;
+    }
+    if (part.match(/(?:顺时针|向右)\s*旋转\s*90\s*度/i) || part.match(/旋转\s*90\s*度/i)) {
+      operations.push({
+        type: "rotate",
+        params: {
+          degrees: 90,
+          backgroundColor: "transparent"
+        }
+      });
+      continue;
+    }
+    if (part.match(/(?:逆时针|向左)\s*旋转\s*90\s*度/i)) {
+      operations.push({
+        type: "rotate",
+        params: {
+          degrees: -90,
+          backgroundColor: "transparent"
+        }
+      });
+      continue;
+    }
+    
+    // 5. 模糊 effects-blur
+    if (part.match(/(?:模糊|虚化|柔化)/)) {
+      let radius = 5, sigma = 5;
+      if (part.match(/(?:轻微|轻度|弱|小)/)) {
+        radius = 2; sigma = 2;
+      } else if (part.match(/(?:强烈|重度|强|大)/)) {
+        radius = 10; sigma = 10;
+      }
+      operations.push({
+        type: "effects-blur",
+        params: { radius, sigma }
+      });
+      continue;
+    }
+    
+    // 6. 锐化 effects-sharpen
+    if (part.match(/(?:锐化|清晰|增强清晰度)/)) {
+      let radius = 1, amount = 1;
+      if (part.match(/(?:轻微|轻度|弱)/)) {
+        radius = 1; amount = 0.5;
+      } else if (part.match(/(?:强烈|重度|强)/)) {
+        radius = 3; amount = 3;
+      }
+      operations.push({
+        type: "effects-sharpen",
+        params: { radius, amount }
+      });
+      continue;
+    }
+    
+    // 7. 亮度 effects-brightness
+    const brightnessMatch = part.match(/(?:亮度|变亮|变暗|调亮|调暗)\s*(?:到|为)?\s*([+-]?\d+)/i);
+    if (brightnessMatch) {
+      const value = parseInt(brightnessMatch[1]);
+      operations.push({
+        type: "effects-brightness",
+        params: { value }
+      });
+      continue;
+    }
+    if (part.match(/(?:变亮|调亮)/)) {
+      operations.push({
+        type: "effects-brightness",
+        params: { value: 20 }
+      });
+      continue;
+    }
+    if (part.match(/(?:变暗|调暗)/)) {
+      operations.push({
+        type: "effects-brightness",
+        params: { value: -20 }
+      });
+      continue;
+    }
+    
+    // 8. 对比度 effects-contrast
+    const contrastMatch = part.match(/(?:对比度|增强对比|降低对比)\s*(?:到|为)?\s*([+-]?\d+)/i);
+    if (contrastMatch) {
+      const value = parseInt(contrastMatch[1]);
+      operations.push({
+        type: "effects-contrast",
+        params: { value }
+      });
+      continue;
+    }
+    if (part.match(/(?:增强对比)/)) {
+      operations.push({
+        type: "effects-contrast",
+        params: { value: 20 }
+      });
+      continue;
+    }
+    if (part.match(/(?:降低对比)/)) {
+      operations.push({
+        type: "effects-contrast",
+        params: { value: -20 }
+      });
+      continue;
+    }
+    
+    // 9. 饱和度 effects-saturation
+    const saturationMatch = part.match(/(?:饱和度|鲜艳|色彩饱和度)\s*(?:到|为)?\s*([+-]?\d+)/i);
+    if (saturationMatch) {
+      const value = parseInt(saturationMatch[1]);
+      operations.push({
+        type: "effects-saturation",
+        params: { value }
+      });
+      continue;
+    }
+    
+    // 10. 怀旧 effects-sepia
+    if (part.match(/(?:怀旧|复古|褐色|老照片)/)) {
+      let intensity = 80;
+      if (part.match(/(?:轻微|轻度|弱)/)) {
+        intensity = 60;
+      } else if (part.match(/(?:强烈|重度|强)/)) {
+        intensity = 100;
+      }
+      operations.push({
+        type: "effects-sepia",
+        params: { intensity }
+      });
+      continue;
+    }
+    
+    // 11. 格式转换 convert
+    const convertMatch = part.match(/(?:转为|转换为|保存为|改成)\s*(jpg|jpeg|png|gif|webp|bmp)/i);
+    if (convertMatch) {
+      const format = convertMatch[1].toLowerCase();
+      operations.push({
+        type: "convert",
+        params: {
+          format: format === 'jpeg' ? 'jpg' : format,
+          quality: 90
+        }
+      });
+      continue;
+    }
+    
+    // 12. 形状裁剪 shapeCrop
+    if (part.match(/(?:圆形|圆)/)) {
+      const sizeMatch = part.match(/(\d+)/);
+      const size = sizeMatch ? parseInt(sizeMatch[1]) : 200;
+      operations.push({
+        type: "shapeCrop",
+        params: {
+          shape: "circle",
+          width: size,
+          height: size,
+          x: null,
+          y: null,
+          backgroundColor: "transparent"
+        }
+      });
+      continue;
+    }
+    
+    // 13. 晕影 effects-vignette
+    if (part.match(/(?:晕影|暗角|四角暗化)/)) {
+      operations.push({
+        type: "effects-vignette",
+        params: {
+          radius: 100,
+          sigma: 50
+        }
+      });
+      continue;
+    }
+  }
+  
+  return operations;
+}
 
 /**
  * 检查服务是否可用
@@ -498,19 +780,126 @@ async function processImage(imageUrl, operations) {
   }
 }
 
+// 生成完整的操作参数结构说明
+const COMPLETE_OPERATIONS_DOC = `
+完整操作参数结构（参考代码中的 COMPLETE_EXAMPLE 常量）：
+
+所有操作都遵循格式：{ "type": "操作类型", "params": { ...参数对象 } }
+
+核心操作类型示例：
+
+1. resize - 调整大小
+   { "type": "resize", "params": { "width": 800, "height": 600, "maintainAspectRatio": true, "quality": 90 } }
+
+2. crop - 矩形裁剪
+   { "type": "crop", "params": { "x": 0, "y": 0, "width": 500, "height": 500 } }
+
+3. shapeCrop - 形状裁剪
+   { "type": "shapeCrop", "params": { "shape": "circle", "width": 200, "height": 200, "x": null, "y": null, "backgroundColor": "transparent" } }
+   shape: 'circle'|'ellipse'|'star'|'triangle'|'diamond'|'heart'|'hexagon'|'octagon'
+
+4. rotate - 旋转
+   { "type": "rotate", "params": { "degrees": 90, "backgroundColor": "#000000" } }
+
+5. convert - 格式转换
+   { "type": "convert", "params": { "format": "jpg", "quality": 90 } }
+   format: 'jpg'|'png'|'gif'|'webp'|'bmp'
+
+6. filter-grayscale - 快速灰度（无需参数）
+   { "type": "filter-grayscale", "params": {} }
+
+7. effects-grayscale - 灰度（可调算法）⭐ 推荐用于黑白转换
+   { "type": "effects-grayscale", "params": { "method": "Rec709", "intensity": 100 } }
+   method: 'Rec601'|'Rec709'|'Rec2020'|'Average'|'Lightness'|'Luminance'|'RMS'
+   intensity: 0-100（100为完全灰度）
+
+8. effects-blur - 模糊特效
+   { "type": "effects-blur", "params": { "radius": 5, "sigma": 5 } }
+
+9. effects-sharpen - 锐化特效
+   { "type": "effects-sharpen", "params": { "radius": 1, "amount": 1 } }
+
+10. effects-brightness - 亮度
+    { "type": "effects-brightness", "params": { "value": 0 } }
+    value: -100到100（0为原始）
+
+11. effects-contrast - 对比度
+    { "type": "effects-contrast", "params": { "value": 0 } }
+    value: -100到100（0为原始）
+
+12. effects-saturation - 饱和度
+    { "type": "effects-saturation", "params": { "value": 0 } }
+    value: -100到100（0为原始）
+
+13. effects-sepia - 怀旧特效
+    { "type": "effects-sepia", "params": { "intensity": 80 } }
+    intensity: 0-100
+
+14. effects-vignette - 晕影
+    { "type": "effects-vignette", "params": { "radius": 100, "sigma": 50 } }
+
+15. watermark - 水印
+    { "type": "watermark", "params": { "type": "text", "text": "水印文字", "position": "bottom-right", "opacity": 0.5, "fontSize": 24, "color": "#FFFFFF" } }
+
+更多操作类型（effects-charcoal, effects-oil-painting, effects-pixelate, effects-mosaic, effects-swirl, effects-wave, effects-negate, effects-posterize, effects-sketch, effects-emboss, effects-edge, effects-colorize, effects-tint, effects-noise, effects-despeckle, effects-solarize, effects-implode, effects-explode, effects-spread, effects-normalize, effects-equalize, effects-gamma, effects-threshold, effects-quantize）的完整参数结构请参考代码中的 COMPLETE_EXAMPLE 常量（第79-446行）。
+`;
+
 // 注册工具：处理图片
-server.tool(
+// 注意：工具必须在 connect 之前注册
+// 使用对象字面量格式（ZodRawShape）以避免 Zod v4 兼容性问题
+server.registerTool(
   "process_image",
   {
-    imageUrl: z.string().describe("图片 URL 或本地文件路径（支持 http:// 和 https://）"),
-    operations: z.array(
-      z.object({
-        type: z.string().describe("操作类型，如：resize, crop, rotate, convert, watermark, effects-grayscale, effects-blur 等"),
-        params: z.record(z.any()).optional().describe("操作参数对象，根据操作类型不同而不同。如果不提供，将使用默认参数。"),
-      })
-    ).describe(`图片处理操作数组，按顺序执行。每个操作包含 type（操作类型）和可选的 params（参数对象）。\n\n${OPERATIONS_EXAMPLE}`),
+    title: "处理图片",
+    description: `处理图片的工具。支持两种使用方式：
+1. 自然语言描述（推荐）：提供 operationDescription，工具会自动解析
+2. 直接指定操作：提供 operations 数组，精确控制每个操作
+
+${COMPLETE_OPERATIONS_DOC}
+
+使用方式：
+- imageUrl: 图片地址（URL 或本地路径，支持 http:// 和 https://）
+- operationDescription（可选）: 自然语言描述，如："把图片调整到 800x600，然后转为灰度图"
+- operations（可选）: 直接指定操作数组，格式见上面的完整参数结构
+
+优先级：如果同时提供 operationDescription 和 operations，优先使用 operations。
+
+支持的操作类型和关键词（用于自然语言解析）：
+- resize: 调整大小、缩放、尺寸、宽高、调整到、改为（例如："调整到 800x600"）
+- crop: 裁剪、截取、切图、剪裁（例如："裁剪左上角 500x500"）
+- shapeCrop: 圆形、椭圆、星形、三角形、心形、菱形（例如："圆形裁剪"）
+- rotate: 旋转、转动、顺时针、逆时针（例如："旋转 90 度"）
+- convert: 转换格式、转为 jpg/png/webp、保存为（例如："转为 jpg"）
+- effects-grayscale: 灰度、黑白、去色、灰阶（例如："转为灰度图"）
+- effects-blur: 模糊、虚化、柔化（例如："添加模糊效果"）
+- effects-sharpen: 锐化、清晰、增强清晰度（例如："锐化图片"）
+- effects-brightness: 亮度、变亮、变暗、调亮、调暗（例如："调亮图片"）
+- effects-contrast: 对比度、增强对比、降低对比（例如："增强对比度"）
+- effects-saturation: 饱和度、鲜艳、色彩饱和度（例如："增加饱和度"）
+- effects-sepia: 怀旧、复古、褐色、老照片（例如："怀旧效果"）
+- effects-vignette: 晕影、暗角、四角暗化（例如："添加晕影"）
+
+参数推断规则：
+- "调整到 800x600" → resize: { width: 800, height: 600, maintainAspectRatio: true }
+- "强度适中/中等" → 使用中等参数值（如 radius: 5, intensity: 50）
+- "轻微/轻度/弱" → 使用较小参数值（如 radius: 2, intensity: 30）
+- "强烈/重度/强" → 使用较大参数值（如 radius: 10, intensity: 80）
+- "保持宽高比" → maintainAspectRatio: true
+- "居中" → x: null, y: null（使用默认居中）
+
+示例：
+- 自然语言："把图片调整到 800x600，然后转为灰度图"
+- 直接指定：operations: [{ "type": "effects-grayscale", "params": { "method": "Rec709", "intensity": 100 } }]`,
+    inputSchema: {
+      imageUrl: z.string().describe("图片 URL 或本地文件路径（支持 http:// 和 https://）"),
+      operationDescription: z.string().optional().describe("自然语言描述，描述想要对图片进行的操作。例如：'把图片调整到 800x600，然后转为灰度图' 或 '裁剪图片左上角 500x500 的区域，然后旋转 90 度'。如果提供了 operations 参数，此参数将被忽略。"),
+      operations: z.array(z.object({
+        type: z.string(),
+        params: z.any()
+      })).optional().describe("直接指定操作数组，格式见工具描述中的完整参数结构。如果提供了此参数，将优先使用它，忽略 operationDescription。"),
+    },
   },
-  async ({ imageUrl, operations }) => {
+  async ({ imageUrl, operationDescription, operations }) => {
     try {
       // 验证服务是否可用
       const isHealthy = await checkServiceHealth();
@@ -538,20 +927,40 @@ server.tool(
         };
       }
 
-      if (!operations || !Array.isArray(operations) || operations.length === 0) {
+      let finalOperations = [];
+
+      // 优先级：如果提供了 operations，优先使用它
+      if (operations && Array.isArray(operations) && operations.length > 0) {
+        finalOperations = operations;
+      } else if (operationDescription && typeof operationDescription === 'string' && operationDescription.trim().length > 0) {
+        // 否则使用 operationDescription 解析
+        finalOperations = parseOperationDescription(operationDescription);
+        
+        if (finalOperations.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `错误: 无法从操作描述中解析出有效的操作。\n\n操作描述: "${operationDescription}"\n\n请使用更明确的描述，例如：\n- "把图片调整到 800x600，然后转为灰度图"\n- "裁剪图片左上角 500x500 的区域，然后旋转 90 度"\n- "添加模糊效果，强度适中"\n\n或者直接提供 operations 参数，格式见工具描述中的完整参数结构。`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      } else {
         return {
           content: [
             {
               type: "text",
-              text: "错误: operations 必须是非空数组",
+              text: "错误: 必须提供 operationDescription 或 operations 参数之一。\n\n- operationDescription: 自然语言描述（如：'转为灰度图'）\n- operations: 直接指定操作数组（格式见工具描述中的完整参数结构）",
             },
           ],
           isError: true,
         };
       }
 
-      // 处理图片
-      const result = await processImage(imageUrl, operations);
+      // 调用图片处理函数
+      const result = await processImage(imageUrl, finalOperations);
 
       // 构建返回消息
       let message = `图片处理成功！\n\n`;
@@ -572,23 +981,15 @@ server.tool(
           message += `${index + 1}. ${cmd}\n`;
         });
       }
-
+ 
       return {
         content: [
           {
             type: "text",
             text: message,
           },
-          // 如果有图片 URL，也可以返回图片资源
-          ...(result.url
-            ? [
-                {
-                  type: "image",
-                  data: result.url,
-                  mimeType: "image/jpeg",
-                },
-              ]
-            : []),
+          // 注意：MCP 的 image content 需要 data URI 格式，暂时只返回文本消息
+          // 处理后的图片可以通过返回的 URL 访问
         ],
       };
     } catch (error) {
@@ -610,18 +1011,12 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   
-  // 检查服务状态
-  const isHealthy = await checkServiceHealth();
-  if (!isHealthy) {
-    console.error(
-      `警告: 图片处理服务不可用 (${DEFAULT_API_URL})\n请确保服务已启动`
-    );
-  } else {
-    console.log(`MCP 服务器已启动，连接到图片处理服务: ${DEFAULT_API_URL}`);
-  }
+  // 注意：不要使用 console.log 或 console.error，因为 MCP 协议要求所有通信必须是 JSON
+  // 日志输出会干扰 MCP 协议的 JSON 消息解析
+  // 如果需要调试，可以使用 process.stderr.write，但最好完全移除日志
 }
 
 main().catch((error) => {
-  console.error("启动 MCP 服务器失败:", error);
+  // 错误信息通过 MCP 协议返回，不要输出到 stdout/stderr
   process.exit(1);
 });
