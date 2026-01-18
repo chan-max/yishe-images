@@ -1,0 +1,10 @@
+{
+  "apiKey": "your-api-key-here",
+  "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "model": "qwen-vl-max-latest",
+  "maxTokens": 4096,
+  "temperature": 0.7,
+  "enabled": true,
+  "comment": "复制此文件为 ai.config.json 并填入你的配置信息"
+}
+

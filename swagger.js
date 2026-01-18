@@ -66,6 +66,18 @@ const options = {
         name: 'Batch',
         description: '批量处理',
       },
+      {
+        name: 'AI处理',
+        description: 'AI智能处理和直接执行命令',
+      },
+      {
+        name: 'Process',
+        description: '链式处理',
+      },
+      {
+        name: '文件管理',
+        description: '文件管理',
+      },
     ],
     components: {
       schemas: {

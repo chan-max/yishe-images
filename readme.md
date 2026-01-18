@@ -97,10 +97,43 @@ yishe-images/
 
 ## 🔧 配置
 
-### 环境变量
+### 配置方式
+
+#### 方式1：使用配置文件（推荐）
+
+编辑 `config/ai.config.json` 文件（如果不存在，可以复制 `config/ai.config.json.example`）：
+
+```json
+{
+  "apiKey": "sk-6b30d334c13b4995a85400958e7f1ea7",
+  "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "model": "qwen-vl-max-latest",
+  "maxTokens": 4096,
+  "temperature": 0.7,
+  "enabled": true
+}
+```
+
+**配置说明：**
+- `apiKey`: AI服务API密钥（必填）
+- `baseURL`: AI服务基础URL（可选，不设置则使用默认OpenAI服务）
+- `model`: 模型名称（可选，默认: gpt-4o-mini）
+- `maxTokens`: 最大token数（可选，默认: 4096）
+- `temperature`: 温度参数（可选，默认: 0.3）
+- `enabled`: 是否启用AI服务（可选，默认: true）
+
+#### 方式2：使用环境变量
 
 - `PORT`: 服务端口（默认: 1513）
 - `NODE_ENV`: 运行环境（production/development）
+- `OPENAI_API_KEY` 或 `AI_API_KEY`: AI服务API密钥（用于AI智能处理功能）
+- `AI_BASE_URL` 或 `OPENAI_BASE_URL`: AI服务基础URL（支持阿里云DashScope等兼容OpenAI API的服务）
+- `AI_MODEL` 或 `OPENAI_MODEL`: AI模型名称（默认: gpt-4o-mini）
+- `AI_MAX_TOKENS`: 最大token数（默认: 4096）
+- `AI_TEMPERATURE`: 温度参数（默认: 0.3）
+- `AI_ENABLED`: 是否启用AI服务（true/false，默认: true）
+
+**注意：环境变量的优先级高于配置文件**
 
 ### 端口配置
 
@@ -122,8 +155,89 @@ yishe-images/
 - `POST /api/convert` - 格式转换
 - `POST /api/watermark` - 添加水印
 - `POST /api/effects` - 应用图片效果
+- `POST /api/process` - 链式处理（统一接口）
+- `POST /api/process-with-prompt` - AI智能处理（通过自然语言描述处理图片）
+- `POST /api/execute-command` - 直接执行ImageMagick命令
 
 完整 API 文档：http://localhost:1513/api-docs
+
+## 🤖 AI智能处理功能
+
+### 功能说明
+
+项目新增了AI智能处理功能，可以通过自然语言描述来处理图片，AI会自动分析并生成相应的ImageMagick命令。
+
+### 使用方法
+
+1. **设置AI服务配置**
+   
+   有两种方式配置AI服务：
+   
+   **方式1：使用配置文件（推荐）**
+   
+   编辑 `config/ai.config.json` 文件：
+   ```json
+   {
+     "apiKey": "sk-6b30d334c13b4995a85400958e7f1ea7",
+     "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+     "model": "qwen-vl-max-latest",
+     "maxTokens": 4096,
+     "temperature": 0.7,
+     "enabled": true
+   }
+   ```
+   
+   **方式2：使用环境变量**
+   
+   **使用OpenAI（默认）：**
+   ```bash
+   export OPENAI_API_KEY=your-api-key-here
+   ```
+   
+   **使用阿里云DashScope：**
+   ```bash
+   export AI_API_KEY=sk-6b30d334c13b4995a85400958e7f1ea7
+   export AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+   export AI_MODEL=qwen-vl-max-latest
+   export AI_MAX_TOKENS=4096
+   export AI_TEMPERATURE=0.7
+   ```
+   
+   或者在启动时设置：
+   ```bash
+   AI_API_KEY=your-api-key AI_BASE_URL=your-base-url AI_MODEL=your-model npm start
+   ```
+   
+   **注意：环境变量的优先级高于配置文件**
+
+2. **使用AI处理接口**
+   - 访问UI页面：http://localhost:1513，选择"AI智能处理"
+   - 或直接调用API：
+     ```json
+     POST /api/process-with-prompt
+     {
+       "prompt": "请将这个图片裁剪成方形，然后转变成黑白色",
+       "image": "https://example.com/image.jpg"
+     }
+     ```
+
+3. **直接执行命令接口**
+   - 访问UI页面：http://localhost:1513，选择"直接执行命令"
+   - 或直接调用API：
+     ```json
+     POST /api/execute-command
+     {
+       "image": "https://example.com/image.jpg",
+       "command": ["-resize", "800x600", "-colorspace", "Gray"]
+     }
+     ```
+
+### 示例Prompt
+
+- "请将这个图片裁剪成方形，然后转变成黑白色"
+- "调整图片大小为800x600，然后添加模糊效果"
+- "将图片旋转90度，然后转换为PNG格式"
+- "裁剪图片中心区域，尺寸为400x400，然后添加怀旧效果"
 
 ## 🐳 Docker 使用
 

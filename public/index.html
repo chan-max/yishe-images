@@ -74,9 +74,16 @@
       margin-left: 220px;
       margin-right: 360px;
       padding: 1rem 1.5rem;
+      max-width: 100%;
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-x: hidden;
     }
     .section {
       margin-bottom: 2rem;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
     }
     .debug-panel {
       width: 360px;
@@ -267,6 +274,8 @@
     .compact-segment {
       padding: 0.75rem !important;
       margin-bottom: 1rem !important;
+      max-width: 100%;
+      box-sizing: border-box;
     }
     .compact-segment h3 {
       font-size: 1em !important;
@@ -281,18 +290,48 @@
     }
     .image-comparison-container {
       display: flex;
-      gap: 1rem;
+      flex-direction: row;
+      gap: 0.5rem;
       align-items: flex-start;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
     .image-comparison-item {
-      flex: 1;
+      flex: 0 0 calc(50% - 0.25rem);
       text-align: center;
+      min-width: 0;
+      max-width: calc(50% - 0.25rem);
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    .image-comparison-item h4 {
+      font-size: 0.9em;
+      margin: 0 0 0.5rem 0;
+      font-weight: 500;
     }
     .image-comparison-item img {
-      width: 100%;
+      max-width: 100%;
+      max-height: 350px;
+      width: auto;
       height: auto;
       border-radius: 6px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+    @media (max-width: 768px) {
+      .image-comparison-container {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .image-comparison-item {
+        flex: 1 1 100%;
+        max-width: 100%;
+      }
     }
     .compact-grid {
       margin: 0.5rem 0 !important;
@@ -1169,6 +1208,205 @@
                     <a :href="state.chainProcessResultImage" :download="state.chainProcessResultFilename" class="ui primary button">
                       <i class="download icon"></i> 下载图片
                     </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI智能处理 -->
+        <div class="view-container" :class="{ active: state.currentView === 'ai-process' }">
+          <div class="section">
+            <h1 class="ui header">
+              <i class="magic icon"></i>
+              <div class="content">
+                AI智能处理
+                <div class="sub header">通过自然语言描述处理图片，AI自动生成ImageMagick命令</div>
+              </div>
+            </h1>
+
+            <!-- 图片输入区域 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">图片输入</h3>
+              
+              <div class="ui form">
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（支持本地文件名或网络 URL）</label>
+                  <input type="text" v-model="state.aiProcessImageUrl" placeholder="输入文件名（如：1234567890-123456789.jpg）或网络 URL（如：https://example.com/image.jpg）" @keyup.enter="updateAiProcessImagePreview" @input="updateAiProcessImagePreview" style="font-size: 0.9em;">
+                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">
+                    支持本地文件名（位于 uploads 目录）或网络图片 URL（自动下载）。格式：JPG, PNG, GIF, BMP, WEBP, SVG, TIFF
+                  </p>
+                </div>
+              </div>
+              
+              <div v-if="state.aiProcessImage" style="margin-top: 0.75rem;">
+                <img :src="state.aiProcessImage" class="image-preview" alt="当前图片">
+                <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
+                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>当前图片:</strong> {{ state.aiProcessImageUrl || state.aiProcessFilename }}</p>
+                  <p v-if="state.aiProcessImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;">
+                    <strong>尺寸:</strong> {{ state.aiProcessImageInfo.width }} × {{ state.aiProcessImageInfo.height }} px
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Prompt输入区域 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">处理描述（Prompt）</h3>
+              
+              <div class="ui form">
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">自然语言描述</label>
+                  <textarea v-model="state.aiProcessPrompt" placeholder="例如：请将这个图片裁剪成方形，然后转变成黑白色" rows="3" style="font-size: 0.9em;"></textarea>
+                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">
+                    用自然语言描述你想要对图片进行的处理，AI会自动分析并生成相应的ImageMagick命令。
+                    <br>示例：
+                    <br>- "请将这个图片裁剪成方形，然后转变成黑白色"
+                    <br>- "调整图片大小为800x600，然后添加模糊效果"
+                    <br>- "将图片旋转90度，然后转换为PNG格式"
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 处理按钮和结果 -->
+            <div class="ui segment compact-segment">
+              <button class="ui primary button" :class="{ loading: state.loading.aiProcess }" @click="handleAiProcess" :disabled="!state.aiProcessImageUrl || !state.aiProcessPrompt || state.loading.aiProcess">
+                <i class="magic icon"></i> AI智能处理
+              </button>
+              <button v-if="state.aiProcessResultImage" class="ui button" @click="clearAiProcess">
+                <i class="trash icon"></i> 清除
+              </button>
+              
+              <div v-if="state.aiProcessResultImage" style="margin-top: 1rem;">
+                <!-- AI分析结果 -->
+                <div v-if="state.aiProcessCommand" class="ui message" style="padding: 0.75rem; margin-bottom: 0.75rem;">
+                  <h4 style="margin: 0 0 0.5rem 0; font-size: 0.95em;">AI分析的命令：</h4>
+                  <pre style="background: #f5f5f5; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; margin: 0;">{{ state.aiProcessCommand }}</pre>
+                </div>
+                
+                <div v-if="state.aiProcessOperations" class="ui message" style="padding: 0.75rem; margin-bottom: 0.75rem;">
+                  <h4 style="margin: 0 0 0.5rem 0; font-size: 0.95em;">操作数组：</h4>
+                  <pre style="background: #f5f5f5; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; margin: 0; max-height: 200px; overflow-y: auto;">{{ JSON.stringify(state.aiProcessOperations, null, 2) }}</pre>
+                </div>
+                
+                <div v-if="state.aiProcessExecutedCommands && state.aiProcessExecutedCommands.length > 0" class="ui message" style="padding: 0.75rem; margin-bottom: 0.75rem;">
+                  <h4 style="margin: 0 0 0.5rem 0; font-size: 0.95em;">执行的命令：</h4>
+                  <div style="max-height: 200px; overflow-y: auto;">
+                    <div v-for="(cmd, index) in state.aiProcessExecutedCommands" :key="index" style="margin-bottom: 0.5rem;">
+                      <pre style="background: #f5f5f5; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; margin: 0;">{{ index + 1 }}. {{ cmd }}</pre>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- 图片对比 -->
+                <div class="image-comparison-container" style="margin-top: 0.5rem;">
+                  <div class="image-comparison-item">
+                    <h4>原图</h4>
+                    <img :src="state.aiProcessImage" alt="原图">
+                  </div>
+                  <div class="image-comparison-item">
+                    <h4>处理后</h4>
+                    <img :src="state.aiProcessResultImage" alt="处理后">
+                    <div style="margin-top: 0.5rem; text-align: center;">
+                      <a :href="state.aiProcessResultImage" :download="state.aiProcessResultFilename" class="ui small primary button">
+                        <i class="download icon"></i> 下载图片
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 直接执行命令 -->
+        <div class="view-container" :class="{ active: state.currentView === 'command-execute' }">
+          <div class="section">
+            <h1 class="ui header">
+              <i class="terminal icon"></i>
+              <div class="content">
+                直接执行命令
+                <div class="sub header">直接输入ImageMagick命令参数执行</div>
+              </div>
+            </h1>
+
+            <!-- 图片输入区域 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">图片输入</h3>
+              
+              <div class="ui form">
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（支持本地文件名或网络 URL）</label>
+                  <input type="text" v-model="state.commandExecuteImageUrl" placeholder="输入文件名（如：1234567890-123456789.jpg）或网络 URL（如：https://example.com/image.jpg）" @keyup.enter="updateCommandExecuteImagePreview" @input="updateCommandExecuteImagePreview" style="font-size: 0.9em;">
+                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">
+                    支持本地文件名（位于 uploads 目录）或网络图片 URL（自动下载）
+                  </p>
+                </div>
+              </div>
+              
+              <div v-if="state.commandExecuteImage" style="margin-top: 0.75rem;">
+                <img :src="state.commandExecuteImage" class="image-preview" alt="当前图片">
+                <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
+                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>当前图片:</strong> {{ state.commandExecuteImageUrl }}</p>
+                  <p v-if="state.commandExecuteImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;">
+                    <strong>尺寸:</strong> {{ state.commandExecuteImageInfo.width }} × {{ state.commandExecuteImageInfo.height }} px
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 命令输入区域 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">ImageMagick命令</h3>
+              
+              <div class="ui form">
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">命令参数（JSON数组格式）</label>
+                  <textarea v-model="state.commandExecuteCommand" placeholder='例如：["-resize", "800x600", "-colorspace", "Gray"]' rows="4" style="font-size: 0.9em; font-family: monospace;"></textarea>
+                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">
+                    输入ImageMagick命令参数数组（JSON格式）。注意：输入文件路径和输出文件路径会自动添加，只需提供中间的处理参数。
+                    <br>示例：
+                    <br>- <code>["-resize", "800x600"]</code> - 调整大小
+                    <br>- <code>["-colorspace", "Gray"]</code> - 转为灰度
+                    <br>- <code>["-blur", "0x5"]</code> - 模糊
+                    <br>- <code>["-rotate", "90"]</code> - 旋转
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 执行按钮和结果 -->
+            <div class="ui segment compact-segment">
+              <button class="ui primary button" :class="{ loading: state.loading.commandExecute }" @click="handleCommandExecute" :disabled="!state.commandExecuteImageUrl || !state.commandExecuteCommand || state.loading.commandExecute">
+                <i class="play icon"></i> 执行命令
+              </button>
+              <button v-if="state.commandExecuteResultImage" class="ui button" @click="clearCommandExecute">
+                <i class="trash icon"></i> 清除
+              </button>
+              
+              <div v-if="state.commandExecuteResultImage" style="margin-top: 1rem;">
+                <!-- 执行的命令 -->
+                <div v-if="state.commandExecuteResultCommand" class="ui message" style="padding: 0.75rem; margin-bottom: 0.75rem;">
+                  <h4 style="margin: 0 0 0.5rem 0; font-size: 0.95em;">执行的完整命令：</h4>
+                  <pre style="background: #f5f5f5; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; margin: 0;">{{ state.commandExecuteResultCommand }}</pre>
+                </div>
+                
+                <!-- 图片对比 -->
+                <div class="image-comparison-container" style="margin-top: 1rem;">
+                  <div class="image-comparison-item">
+                    <h4>原图</h4>
+                    <img :src="state.commandExecuteImage" alt="原图" style="max-width: 100%; border-radius: 6px;">
+                  </div>
+                  <div class="image-comparison-item">
+                    <h4>处理后</h4>
+                    <img :src="state.commandExecuteResultImage" alt="处理后" style="max-width: 100%; border-radius: 6px;">
+                    <div style="margin-top: 0.75rem; text-align: center;">
+                      <a :href="state.commandExecuteResultImage" :download="state.commandExecuteResultFilename" class="ui primary button">
+                        <i class="download icon"></i> 下载图片
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>

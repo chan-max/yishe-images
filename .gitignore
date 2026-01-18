@@ -9,3 +9,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# AI配置文件（包含敏感信息）
+config/ai.config.json
+
