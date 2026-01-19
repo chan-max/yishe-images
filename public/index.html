@@ -358,6 +358,53 @@
     .compact-list .item .description {
       font-size: 0.8em !important;
     }
+    /* 图片裂变结果卡片：固定卡片高度 & 图片区域高度，图片 contain 显示 */
+    .variations-results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .variations-card {
+      margin: 0 !important;
+      height: 420px;
+      display: flex;
+      flex-direction: column;
+    }
+    .variations-card .content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .variation-image-wrapper {
+      flex: 0 0 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* PNG 透明感的网格背景 */
+      background-color: #f8f8f8;
+      background-image:
+        linear-gradient(45deg, #e5e5e5 25%, transparent 25%),
+        linear-gradient(-45deg, #e5e5e5 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #e5e5e5 75%),
+        linear-gradient(-45deg, transparent 75%, #e5e5e5 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 0.75rem;
+    }
+    .variation-image-wrapper img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      cursor: pointer;
+    }
+    .variation-card-actions {
+      margin-top: auto;
+      display: flex;
+      gap: 0.5rem;
+    }
     .collapsible-section {
       margin-bottom: 0.75rem;
     }
@@ -1202,6 +1249,9 @@
               <button v-if="state.chainProcessResultImage" class="ui button" @click="useChainProcessAsSource">
                 <i class="refresh icon"></i> 使用结果作为新源
               </button>
+              <span v-if="state.chainProcessDurationMs" style="margin-left: 1rem; color: #666; font-size: 0.9em;">
+                耗时：{{ state.chainProcessDurationMs }} ms
+              </span>
               
               <div v-if="state.chainProcessResultImage" class="image-comparison-container" style="margin-top: 1rem;">
                 <div class="image-comparison-item">
@@ -1380,21 +1430,21 @@
                 </span>
               </h3>
               
-              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
-                <div v-for="(result, index) in state.variationsResults" :key="index" class="ui card" style="margin: 0;">
+              <div class="variations-results-grid">
+                <div v-for="(result, index) in state.variationsResults" :key="index" class="ui card variations-card">
                   <div class="content">
                     <div class="header" style="font-size: 0.95em; margin-bottom: 0.5rem;">{{ result.name }}</div>
                     <div class="description" style="font-size: 0.85em; color: #666; margin-bottom: 0.75rem;">{{ result.description }}</div>
                     
-                    <div v-if="result.success" style="margin-bottom: 0.75rem;">
-                      <img :src="result.url" style="width: 100%; border-radius: 4px; cursor: pointer;" @click="window.open(result.url, '_blank')" alt="{{ result.name }}">
+                    <div v-if="result.success" class="variation-image-wrapper">
+                      <img :src="result.url" @click="window.open(result.url, '_blank')" :alt="result.name">
                     </div>
                     
                     <div v-else class="ui negative message" style="padding: 0.5rem; margin-bottom: 0.75rem;">
                       <p style="margin: 0; font-size: 0.85em;">处理失败: {{ result.error }}</p>
                     </div>
                     
-                    <div v-if="result.success" style="display: flex; gap: 0.5rem;">
+                    <div v-if="result.success" class="variation-card-actions">
                       <a :href="result.url" :download="result.outputFile" class="ui small primary button" style="flex: 1;">
                         <i class="download icon"></i> 下载
                       </a>

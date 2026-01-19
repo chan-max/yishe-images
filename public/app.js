@@ -134,6 +134,7 @@ function initApp() {
         chainProcessImageInfo: null,
         chainProcessResultImage: null,
         chainProcessResultFilename: null,
+        chainProcessDurationMs: null,
         operationChain: [], // 操作链数组
         selectedOperationType: '', // 选中的操作类型
         selectedOperationIndex: 0, // 当前选中的操作索引（用于tab切换）
@@ -1966,6 +1967,7 @@ function initApp() {
         }
         
         state.loading.chainProcess = true;
+        state.chainProcessDurationMs = null;
         addDebugLog('开始链式处理...', 'info');
         
         try {
@@ -1977,6 +1979,7 @@ function initApp() {
           if (data.success) {
             state.chainProcessResultImage = `${BASE_URL}${data.path}`;
             state.chainProcessResultFilename = data.outputFile;
+            state.chainProcessDurationMs = data.durationMs ?? null;
             addDebugLog('链式处理成功', 'success');
             if (data.commands) {
               data.commands.forEach((cmd, i) => {
@@ -2002,6 +2005,7 @@ function initApp() {
           state.chainProcessFilename = state.chainProcessResultFilename;
           state.chainProcessResultImage = null;
           state.chainProcessResultFilename = null;
+          state.chainProcessDurationMs = null;
           state.operationChain = [];
           addDebugLog('已设置为新的源图片', 'info');
           loadChainProcessImageInfo();

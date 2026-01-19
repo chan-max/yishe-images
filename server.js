@@ -945,6 +945,9 @@ app.post('/api/info', async (req, res) => {
  *               properties:
  *                 success:
  *                   type: boolean
+ *                 durationMs:
+ *                   type: number
+ *                   description: 处理耗时（毫秒）
  *                 outputFile:
  *                   type: string
  *                   description: 输出文件名
@@ -972,6 +975,7 @@ app.post('/api/info', async (req, res) => {
  */
 app.post('/api/process', async (req, res) => {
   try {
+    const startTime = Date.now();
     const { filename, operations } = req.body;
     
     if (!filename) {
@@ -1002,8 +1006,11 @@ app.post('/api/process', async (req, res) => {
     const baseUrl = req.protocol + '://' + req.get('host');
     const outputUrl = `${baseUrl}${outputPath}`;
     
+    const durationMs = Date.now() - startTime;
+
     res.json({
       success: true,
+      durationMs,
       outputFile: result.outputFilename,
       path: outputPath,
       url: outputUrl,
