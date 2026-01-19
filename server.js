@@ -444,12 +444,21 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
       break;
       
     case 'crop':
-      command = await imageProcessor.crop(currentInputPath, outputPath, {
-        x: parseInt(params.x) || 0,
-        y: parseInt(params.y) || 0,
-        width: parseInt(params.width),
-        height: parseInt(params.height)
-      });
+      {
+        const width = parseInt(params.width);
+        const height = parseInt(params.height);
+        if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+          throw new Error(`crop 参数无效：width=${params.width}, height=${params.height}`);
+        }
+        const x = parseInt(params.x);
+        const y = parseInt(params.y);
+        command = await imageProcessor.crop(currentInputPath, outputPath, {
+          x: Number.isFinite(x) ? x : 0,
+          y: Number.isFinite(y) ? y : 0,
+          width,
+          height
+        });
+      }
       break;
       
     case 'shapeCrop':

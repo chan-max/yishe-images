@@ -604,12 +604,15 @@ function initApp() {
         addDebugLog(`开始裁剪: ${width} × ${height} @ (${x}, ${y})`, 'info');
 
         try {
-          const { data } = await axios.post(`${BASE_URL}/api/crop`, {
+          // 统一走链式处理接口 /api/process（后端未单独提供 /api/crop）
+          const { data } = await axios.post(`${BASE_URL}/api/process`, {
             filename: state.currentFilename,
-            x,
-            y,
-            width,
-            height
+            operations: [
+              {
+                type: 'crop',
+                params: { x, y, width, height }
+              }
+            ]
           });
 
           if (data.success) {
