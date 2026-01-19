@@ -10,8 +10,9 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './swagger.js';
-import imagemagick from './lib/imagemagick.js';
+import imageProcessor from './lib/imagemagick.js';
 import aiService from './lib/ai-service.js';
+import { VARIATIONS_CONFIG } from './lib/variations-config.js';
 
 // ES Module 中获取 __dirname 的等价方式
 const __filename = fileURLToPath(import.meta.url);
@@ -434,7 +435,7 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
 
   switch (type) {
     case 'resize':
-      command = await imagemagick.resize(currentInputPath, outputPath, {
+      command = await imageProcessor.resize(currentInputPath, outputPath, {
         width: parseInt(params.width),
         height: parseInt(params.height),
         quality: params.quality || 90,
@@ -443,7 +444,7 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
       break;
       
     case 'crop':
-      command = await imagemagick.crop(currentInputPath, outputPath, {
+      command = await imageProcessor.crop(currentInputPath, outputPath, {
         x: parseInt(params.x) || 0,
         y: parseInt(params.y) || 0,
         width: parseInt(params.width),
@@ -454,7 +455,7 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
     case 'shapeCrop':
       const baseName = path.parse(currentInputPath).name;
       const shapeOutputPath = outputPath.replace(/\.[^.]+$/, '.png');
-      command = await imagemagick.shapeCrop(currentInputPath, shapeOutputPath, {
+      command = await imageProcessor.shapeCrop(currentInputPath, shapeOutputPath, {
         shape: params.shape,
         x: params.x !== undefined ? parseInt(params.x) : null,
         y: params.y !== undefined ? parseInt(params.y) : null,
@@ -466,7 +467,7 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
       break;
       
     case 'rotate':
-      command = await imagemagick.rotate(currentInputPath, outputPath, {
+      command = await imageProcessor.rotate(currentInputPath, outputPath, {
         degrees: parseFloat(params.degrees) || 0,
         backgroundColor: params.backgroundColor || '#000000'
       });
@@ -474,7 +475,7 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
       
     case 'convert':
       const convertOutputPath = outputPath.replace(/\.[^.]+$/, `.${params.format || 'jpg'}`);
-      command = await imagemagick.convert(currentInputPath, convertOutputPath, {
+      command = await imageProcessor.convert(currentInputPath, convertOutputPath, {
         format: params.format || 'jpg',
         quality: params.quality || 90
       });
@@ -482,7 +483,7 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
       break;
       
     case 'watermark':
-      command = await imagemagick.watermark(currentInputPath, outputPath, {
+      command = await imageProcessor.watermark(currentInputPath, outputPath, {
         type: params.type || 'text',
         text: params.text || '',
         fontSize: parseInt(params.fontSize) || 24,
@@ -500,7 +501,7 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
       break;
       
     case 'adjust':
-      command = await imagemagick.adjust(currentInputPath, outputPath, {
+      command = await imageProcessor.adjust(currentInputPath, outputPath, {
         brightness: parseFloat(params.brightness) || 0,
         contrast: parseFloat(params.contrast) || 0,
         saturation: parseFloat(params.saturation) || 0
@@ -508,14 +509,14 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
       break;
       
     case 'trim':
-      command = await imagemagick.trim(currentInputPath, outputPath, {
+      command = await imageProcessor.trim(currentInputPath, outputPath, {
         fuzz: params.fuzz !== undefined ? parseFloat(params.fuzz) : 0,
         backgroundColor: params.backgroundColor
       });
       break;
       
     case 'extent':
-      command = await imagemagick.extent(currentInputPath, outputPath, {
+      command = await imageProcessor.extent(currentInputPath, outputPath, {
         width: parseInt(params.width),
         height: parseInt(params.height),
         x: parseInt(params.x) || 0,
@@ -526,23 +527,23 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
       break;
       
     case 'flip':
-      command = await imagemagick.flip(currentInputPath, outputPath);
+      command = await imageProcessor.flip(currentInputPath, outputPath);
       break;
       
     case 'flop':
-      command = await imagemagick.flop(currentInputPath, outputPath);
+      command = await imageProcessor.flop(currentInputPath, outputPath);
       break;
       
     case 'transpose':
-      command = await imagemagick.transpose(currentInputPath, outputPath);
+      command = await imageProcessor.transpose(currentInputPath, outputPath);
       break;
       
     case 'transverse':
-      command = await imagemagick.transverse(currentInputPath, outputPath);
+      command = await imageProcessor.transverse(currentInputPath, outputPath);
       break;
       
     case 'filter': {
-      command = await imagemagick.applyFilter(currentInputPath, outputPath, {
+      command = await imageProcessor.applyFilter(currentInputPath, outputPath, {
         filterType: params.filterType,
         intensity: params.intensity !== undefined ? parseFloat(params.intensity) || 1 : 1,
       });
@@ -576,7 +577,7 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
         effectsArray = [effect];
       }
 
-      command = await imagemagick.applyEffects(currentInputPath, outputPath, effectsArray);
+      command = await imageProcessor.applyEffects(currentInputPath, outputPath, effectsArray);
       break;
     }
       
@@ -828,7 +829,7 @@ app.post('/api/info', async (req, res) => {
       return res.status(404).json({ error: '文件不存在' });
     }
     
-    const info = await imagemagick.identify(filePath);
+    const info = await imageProcessor.identify(filePath);
     res.json({ success: true, info });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1054,7 +1055,7 @@ app.post('/api/process-with-prompt', async (req, res) => {
     // 获取图片信息（用于AI分析）
     let imageInfo = null;
     try {
-      imageInfo = await imagemagick.identify(inputPath);
+      imageInfo = await imageProcessor.identify(inputPath);
     } catch (error) {
       console.warn('获取图片信息失败:', error.message);
     }
@@ -1093,6 +1094,144 @@ app.post('/api/process-with-prompt', async (req, res) => {
 
 /**
  * @swagger
+ * /api/variations:
+ *   post:
+ *     summary: 图片裂变处理
+ *     tags: [Variations]
+ *     description: 对指定图片应用所有预设的裂变配置，生成多个变体
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - filename
+ *             properties:
+ *               filename:
+ *                 type: string
+ *                 description: 已上传的文件名或网络图片 URL
+ *                 example: "1234567890-123456789.jpg"
+ *     responses:
+ *       200:
+ *         description: 处理完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 results:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       success:
+ *                         type: boolean
+ *                       name:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       outputFile:
+ *                         type: string
+ *                       path:
+ *                         type: string
+ *                       url:
+ *                         type: string
+ *                       error:
+ *                         type: string
+ *                 successCount:
+ *                   type: number
+ *                 failCount:
+ *                   type: number
+ *       400:
+ *         description: 参数错误或下载失败
+ *       404:
+ *         description: 文件不存在（仅本地文件）
+ *       500:
+ *         description: 处理失败
+ */
+app.post('/api/variations', async (req, res) => {
+  try {
+    const { filename } = req.body;
+    
+    if (!filename) {
+      return res.status(400).json({ error: '缺少必要参数: filename' });
+    }
+    
+    // 获取图片路径（处理 URL 或本地文件）
+    let imagePathInfo;
+    try {
+      imagePathInfo = await getImagePath(filename, uploadsDir);
+    } catch (error) {
+      if (error.message === '文件不存在') {
+        return res.status(404).json({ error: error.message });
+      }
+      return res.status(400).json({ error: error.message });
+    }
+    
+    const { actualFilename, inputPath, downloadedFileInfo } = imagePathInfo;
+    const baseUrl = req.protocol + '://' + req.get('host');
+    
+    // 遍历所有预设配置，生成变体
+    const results = [];
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const variation of VARIATIONS_CONFIG) {
+      try {
+        // 为每个变体生成唯一的输出前缀（使用配置名称的简化版本）
+        const safeName = variation.name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_').substring(0, 20);
+        const outputPrefix = `variation_${safeName}_`;
+        
+        // 执行操作链
+        const result = await executeOperationsChain(
+          inputPath,
+          actualFilename,
+          variation.operations,
+          outputDir,
+          outputPrefix
+        );
+        
+        const outputPath = `/output/${result.outputFilename}`;
+        const outputUrl = `${baseUrl}${outputPath}`;
+        
+        results.push({
+          success: true,
+          name: variation.name,
+          description: variation.description,
+          outputFile: result.outputFilename,
+          path: outputPath,
+          url: outputUrl
+        });
+        
+        successCount++;
+      } catch (error) {
+        results.push({
+          success: false,
+          name: variation.name,
+          description: variation.description,
+          error: error.message
+        });
+        
+        failCount++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      results: results,
+      successCount: successCount,
+      failCount: failCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
  * /api/health:
  *   get:
  *     summary: 健康检查
@@ -1110,10 +1249,10 @@ app.post('/api/process-with-prompt', async (req, res) => {
  */
 app.get('/api/health', async (req, res) => {
   try {
-    const imagemagickStatus = await imagemagick.checkInstallation();
+    const imageProcessorStatus = await imageProcessor.checkInstallation();
     res.json({
       status: 'healthy',
-      imagemagick: imagemagickStatus
+      imageProcessor: imageProcessorStatus
     });
   } catch (error) {
     res.status(500).json({
@@ -1125,7 +1264,7 @@ app.get('/api/health', async (req, res) => {
 
 /**
  * @swagger
- * /api/imagemagick-status:
+ * /api/image-processor-status:
  *   get:
  *     summary: 检测图像处理引擎状态
  *     tags: [Health]
@@ -1136,13 +1275,13 @@ app.get('/api/health', async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ImageMagickStatus'
+ *               $ref: '#/components/schemas/ImageProcessorStatus'
  *       500:
  *         description: 检测失败
  */
-app.get('/api/imagemagick-status', async (req, res) => {
+app.get('/api/image-processor-status', async (req, res) => {
   try {
-    const status = await imagemagick.checkInstallation();
+    const status = await imageProcessor.checkInstallation();
     res.json({
       success: true,
       ...status
@@ -1418,10 +1557,10 @@ function formatFileSize(bytes) {
  */
 app.get('/api/health', async (req, res) => {
   try {
-    const imagemagickStatus = await imagemagick.checkInstallation();
+    const imageProcessorStatus = await imageProcessor.checkInstallation();
     res.json({
       status: 'healthy',
-      imagemagick: imagemagickStatus
+      imageProcessor: imageProcessorStatus
     });
   } catch (error) {
     res.status(500).json({
@@ -1433,7 +1572,7 @@ app.get('/api/health', async (req, res) => {
 
 /**
  * @swagger
- * /api/imagemagick-status:
+ * /api/image-processor-status:
  *   get:
  *     summary: 检测图像处理引擎状态
  *     tags: [Health]
@@ -1444,13 +1583,13 @@ app.get('/api/health', async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ImageMagickStatus'
+ *               $ref: '#/components/schemas/ImageProcessorStatus'
  *       500:
  *         description: 检测失败
  */
-app.get('/api/imagemagick-status', async (req, res) => {
+app.get('/api/image-processor-status', async (req, res) => {
   try {
-    const status = await imagemagick.checkInstallation();
+    const status = await imageProcessor.checkInstallation();
     res.json({
       success: true,
       ...status

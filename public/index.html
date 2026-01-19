@@ -549,7 +549,7 @@
                 <button class="ui small button" :class="{ loading: state.loading.health }" @click="checkHealth" :disabled="state.loading.health">
                   健康检查
                 </button>
-                <button class="ui small primary button" :class="{ loading: state.loading.checkIm }" @click="checkImageMagick" :disabled="state.loading.checkIm">
+                <button class="ui small primary button" :class="{ loading: state.loading.checkIm }" @click="checkImageProcessor" :disabled="state.loading.checkIm">
                   检测引擎状态
                 </button>
               </div>
@@ -558,10 +558,10 @@
                   <span class="status-dot" :class="{'ok': state.healthOk, 'fail': state.healthOk === false}"></span>
                   <span>健康状态：{{ state.healthOk === null ? '未知' : (state.healthOk ? '正常' : '异常') }}</span>
                 </span>
-                <div v-if="state.imagemagickStatus" style="margin-top: 0.5rem;">
+                <div v-if="state.imageProcessorStatus" style="margin-top: 0.5rem;">
                   <span class="status-indicator">
-                    <span class="status-dot" :class="{'ok': state.imagemagickStatus.installed, 'fail': !state.imagemagickStatus.installed}"></span>
-                    <span>{{ state.imagemagickStatus.message }}</span>
+                    <span class="status-dot" :class="{'ok': state.imageProcessorStatus.installed, 'fail': !state.imageProcessorStatus.installed}"></span>
+                    <span>{{ state.imageProcessorStatus.message }}</span>
                   </span>
                 </div>
               </div>
@@ -1321,6 +1321,86 @@
           </div>
         </div>
 
+        <!-- 图片裂变 -->
+        <div class="view-container" :class="{ active: state.currentView === 'variations' }">
+          <div class="section">
+            <h1 class="ui header">
+              <i class="clone icon"></i>
+              <div class="content">
+                图片裂变
+                <div class="sub header">一键生成多个图片变体，使用预设配置批量处理</div>
+              </div>
+            </h1>
+
+            <!-- 图片输入区域 -->
+            <div class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">图片输入</h3>
+              
+              <div class="ui form">
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <label style="font-size: 0.85em; margin-bottom: 0.25rem;">图片地址（支持本地文件名或网络 URL）</label>
+                  <div class="ui action input">
+                    <input type="text" v-model="state.variationsImageUrl" placeholder="输入文件名（如：1234567890-123456789.jpg）或网络 URL（如：https://example.com/image.jpg）" @keyup.enter="handleVariations" @input="updateVariationsImagePreview" style="font-size: 0.9em;">
+                    <button class="ui primary button" :class="{ loading: state.loading.variations }" @click="handleVariations" :disabled="!state.variationsImageUrl || state.loading.variations">
+                      <i class="clone icon"></i> 开始裂变
+                    </button>
+                  </div>
+                  <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">
+                    支持本地文件名（位于 uploads 目录）或网络图片 URL（自动下载）。格式：JPG, PNG, GIF, BMP, WEBP, SVG, TIFF
+                  </p>
+                </div>
+              </div>
+              
+              <div v-if="state.variationsCurrentImage" style="margin-top: 0.75rem;">
+                <img :src="state.variationsCurrentImage" class="image-preview" alt="当前图片">
+                <div class="ui small message" style="padding: 0.5rem; margin-top: 0.5rem;">
+                  <p style="margin: 0.25rem 0; font-size: 0.85em;"><strong>当前图片:</strong> {{ state.variationsImageUrl || state.variationsCurrentFilename }}</p>
+                  <p v-if="state.variationsImageInfo" style="margin: 0.25rem 0; font-size: 0.85em;">
+                    <strong>尺寸:</strong> {{ state.variationsImageInfo.width }} × {{ state.variationsImageInfo.height }} px
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 处理结果 -->
+            <div v-if="state.variationsResults.length > 0" class="ui segment compact-segment">
+              <h3 class="ui dividing header" style="font-size: 0.95em; margin-bottom: 0.75rem;">
+                处理结果
+                <span style="font-size: 0.85em; color: #666; font-weight: normal;">
+                  (成功: {{ state.variationsResults.filter(r => r.success).length }} / 
+                  失败: {{ state.variationsResults.filter(r => !r.success).length }} / 
+                  总计: {{ state.variationsResults.length }})
+                </span>
+              </h3>
+              
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                <div v-for="(result, index) in state.variationsResults" :key="index" class="ui card" style="margin: 0;">
+                  <div class="content">
+                    <div class="header" style="font-size: 0.95em; margin-bottom: 0.5rem;">{{ result.name }}</div>
+                    <div class="description" style="font-size: 0.85em; color: #666; margin-bottom: 0.75rem;">{{ result.description }}</div>
+                    
+                    <div v-if="result.success" style="margin-bottom: 0.75rem;">
+                      <img :src="result.url" style="width: 100%; border-radius: 4px; cursor: pointer;" @click="window.open(result.url, '_blank')" alt="{{ result.name }}">
+                    </div>
+                    
+                    <div v-else class="ui negative message" style="padding: 0.5rem; margin-bottom: 0.75rem;">
+                      <p style="margin: 0; font-size: 0.85em;">处理失败: {{ result.error }}</p>
+                    </div>
+                    
+                    <div v-if="result.success" style="display: flex; gap: 0.5rem;">
+                      <a :href="result.url" :download="result.outputFile" class="ui small primary button" style="flex: 1;">
+                        <i class="download icon"></i> 下载
+                      </a>
+                      <button class="ui small button" @click="copyImageUrl(result.url)" style="flex: 1;">
+                        <i class="copy icon"></i> 复制链接
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- 文件管理 -->
         <div class="view-container" :class="{ active: state.currentView === 'files' }">
@@ -1544,6 +1624,8 @@
   <script src="/config/operations.config.js"></script>
   
   <!-- 主应用脚本 -->
+  <!-- 裂变默认配置（前端循环调用 /api/process 时使用） -->
+  <script src="variations-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

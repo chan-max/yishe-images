@@ -145,7 +145,7 @@ yishe-images/
 ## 📝 API 端点
 
 - `GET /api/health` - 健康检查
-- `GET /api/imagemagick-status` - ImageMagick 状态
+- `GET /api/image-processor-status` - 图像处理引擎状态
 - `POST /api/upload` - 上传图片
 - `POST /api/info` - 获取图片信息
 - `POST /api/resize` - 调整大小

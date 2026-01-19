@@ -175,7 +175,7 @@ const options = {
               type: 'string',
               enum: ['healthy', 'unhealthy'],
             },
-            imagemagick: {
+            imageProcessor: {
               type: 'object',
               properties: {
                 installed: {
@@ -196,7 +196,7 @@ const options = {
             },
           },
         },
-        ImageMagickStatus: {
+        ImageProcessorStatus: {
           type: 'object',
           properties: {
             success: {

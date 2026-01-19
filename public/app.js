@@ -30,12 +30,17 @@ function initApp() {
         currentView: 'home',
         currentDebugTab: 'all',
         healthOk: null,
-        imagemagickStatus: null,
+        imageProcessorStatus: null,
         imageUrl: '',
         analyzeImageUrl: '',
         chainProcessImageUrl: '',
         watermarkImageUrl: '',
         effectsImageUrl: '',
+        variationsImageUrl: '',
+        variationsCurrentImage: null,
+        variationsCurrentFilename: null,
+        variationsImageInfo: null,
+        variationsResults: [],
         currentImage: null,
         currentFilename: null,
         imageInfo: null,
@@ -117,6 +122,7 @@ function initApp() {
           watermark: false,
           effectsUrlUpload: false,
           effects: false,
+          variations: false,
           chainProcess: false,
           aiProcess: false
         },
@@ -274,6 +280,7 @@ function initApp() {
         { id: 'config', name: '服务配置', icon: 'cog' },
         { id: 'analyze', name: '图片分析', icon: 'search' },
         { id: 'chain-process', name: '链式处理', icon: 'sitemap' },
+        { id: 'variations', name: '图片裂变', icon: 'clone' },
         { id: 'ai-process', name: 'AI智能处理', icon: 'magic' },
         { id: 'files', name: '文件管理', icon: 'folder' }
       ];
@@ -351,15 +358,15 @@ function initApp() {
       }
 
       // 检测图像处理引擎
-      async function checkImageMagick() {
+      async function checkImageProcessor() {
         state.loading.checkIm = true;
         addDebugLog('开始检测图像处理引擎...', 'info');
         try {
-          const { data } = await axios.get(`${BASE_URL}/api/imagemagick-status`);
-          state.imagemagickStatus = data;
+          const { data } = await axios.get(`${BASE_URL}/api/image-processor-status`);
+          state.imageProcessorStatus = data;
           addDebugLog(`图像处理引擎检测: ${data.message}`, data.installed ? 'success' : 'error');
         } catch (e) {
-          state.imagemagickStatus = { installed: false, message: '检测失败' };
+          state.imageProcessorStatus = { installed: false, message: '检测失败' };
           addDebugLog(`图像处理引擎检测失败: ${e.response?.data?.error || e.message}`, 'error');
         } finally {
           state.loading.checkIm = false;
@@ -857,6 +864,139 @@ function initApp() {
       }
 
 // ========== 图片裂变功能 ==========
+      
+      // 更新图片预览
+      async function updateVariationsImagePreview() {
+        if (!state.variationsImageUrl || !state.variationsImageUrl.trim()) {
+          state.variationsCurrentImage = null;
+          state.variationsCurrentFilename = null;
+          state.variationsImageInfo = null;
+          return;
+        }
+
+        const url = state.variationsImageUrl.trim();
+        if (isValidHttpUrl(url)) {
+          state.variationsCurrentImage = url;
+          state.variationsCurrentFilename = url;
+        } else {
+          state.variationsCurrentImage = `${BASE_URL}/uploads/${url}`;
+          state.variationsCurrentFilename = url;
+          await loadVariationsImageInfo();
+        }
+      }
+
+      // 加载图片信息
+      async function loadVariationsImageInfo() {
+        if (!state.variationsCurrentFilename || isValidHttpUrl(state.variationsCurrentFilename)) return;
+
+        try {
+          const { data } = await axios.post(`${BASE_URL}/api/info`, {
+            filename: state.variationsCurrentFilename
+          });
+
+          if (data.success) {
+            state.variationsImageInfo = data.info;
+          }
+        } catch (e) {
+          console.error('加载图片信息失败:', e);
+        }
+      }
+
+      // 处理图片裂变
+      async function handleVariations() {
+        if (!state.variationsImageUrl || !state.variationsImageUrl.trim()) {
+          addDebugLog('请输入有效的图片 URL 或文件名', 'error');
+          return;
+        }
+
+        state.loading.variations = true;
+        state.variationsResults = [];
+        addDebugLog('开始图片裂变处理（逐个配置执行，实时展示）...', 'info');
+
+        try {
+          const filename = state.variationsImageUrl.trim();
+          const configs = Array.isArray(window.VARIATIONS_CONFIG) ? window.VARIATIONS_CONFIG : null;
+
+          if (!configs || configs.length === 0) {
+            addDebugLog('未加载裂变默认配置（window.VARIATIONS_CONFIG），请检查 public/variations-config.js 是否已引入', 'error');
+            return;
+          }
+
+          let successCount = 0;
+          let failCount = 0;
+
+          for (let i = 0; i < configs.length; i++) {
+            const cfg = configs[i];
+            const name = cfg?.name || `配置${i + 1}`;
+            const description = cfg?.description || '';
+            const operations = Array.isArray(cfg?.operations) ? cfg.operations : [];
+
+            if (operations.length === 0) {
+              failCount++;
+              state.variationsResults.push({
+                success: false,
+                name,
+                description,
+                error: '该配置缺少 operations'
+              });
+              continue;
+            }
+
+            addDebugLog(`裂变进度 ${i + 1}/${configs.length}：开始执行「${name}」`, 'info');
+
+            try {
+              const { data } = await axios.post(`${BASE_URL}/api/process`, {
+                filename,
+                operations
+              });
+
+              if (data && data.success) {
+                successCount++;
+                state.variationsResults.push({
+                  success: true,
+                  name,
+                  description,
+                  outputFile: data.outputFile,
+                  path: data.path,
+                  url: data.url
+                });
+              } else {
+                failCount++;
+                state.variationsResults.push({
+                  success: false,
+                  name,
+                  description,
+                  error: data?.error || '处理失败'
+                });
+              }
+            } catch (err) {
+              failCount++;
+              state.variationsResults.push({
+                success: false,
+                name,
+                description,
+                error: err?.response?.data?.error || err?.message || '请求失败'
+              });
+            }
+          }
+
+          addDebugLog(`裂变处理完成: 成功 ${successCount} 个，失败 ${failCount} 个`, (failCount === 0 ? 'success' : 'info'));
+        } catch (e) {
+          const errorMsg = e.response?.data?.error || e.message;
+          addDebugLog(`裂变处理错误: ${errorMsg}`, 'error');
+        } finally {
+          state.loading.variations = false;
+        }
+      }
+
+      // 复制图片URL
+      function copyImageUrl(url) {
+        navigator.clipboard.writeText(url).then(() => {
+          addDebugLog('图片链接已复制到剪贴板', 'success');
+        }).catch(() => {
+          addDebugLog('复制失败，请手动复制', 'error');
+        });
+      }
       
       // 处理效果 URL 上传
       async function handleEffectsUrlUpload() {
@@ -1976,7 +2116,7 @@ function initApp() {
       onMounted(() => {
         addDebugLog('系统初始化完成', 'info');
         checkHealth();
-        checkImageMagick();
+        checkImageProcessor();
       });
 
       return {
@@ -1988,11 +2128,15 @@ function initApp() {
         filteredDebugLogs,
         switchView,
         checkHealth,
-        checkImageMagick,
+        checkImageProcessor,
         handleUrlUpload,
         handleAnalyzeUrlUpload,
         loadAnalyzeImageInfo,
         copyAnalyzeInfo,
+        updateVariationsImagePreview,
+        loadVariationsImageInfo,
+        handleVariations,
+        copyImageUrl,
         useAnalyzeImageForProcess,
         clearAnalyzeImage,
         formatFileSize,

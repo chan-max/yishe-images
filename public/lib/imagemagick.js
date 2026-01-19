@@ -210,7 +210,7 @@ class ImageMagick {
       const commandStr = `${cmd} ${args.map(escapeArg).join(' ')}`;
       
       // 打印完整命令
-      console.log(`[ImageMagick] 执行命令: ${commandStr}`);
+      console.log(`[图像处理引擎] 执行命令: ${commandStr}`);
       
       const { stdout, stderr } = await execAsync(commandStr, {
         encoding: 'utf8',
@@ -218,10 +218,10 @@ class ImageMagick {
         env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' }
       });
       
-      // ImageMagick 通常将信息输出到 stderr，这是正常的
+      // 图像处理引擎通常将信息输出到 stderr，这是正常的
       if (stderr && !stderr.includes('warning') && !stderr.includes('Version:')) {
         // 某些情况下 stderr 包含有用信息，但不一定是错误
-        console.log('ImageMagick stderr:', stderr);
+        console.log('图像处理引擎 stderr:', stderr);
       }
       
       return {
@@ -230,7 +230,7 @@ class ImageMagick {
       };
     } catch (error) {
       const errorMsg = error.stderr || error.message || '未知错误';
-      throw new Error(`ImageMagick 执行失败 (使用命令: ${this.magickCmd}): ${errorMsg}`);
+      throw new Error(`图像处理引擎执行失败 (使用命令: ${this.magickCmd}): ${errorMsg}`);
     }
   }
 
@@ -982,10 +982,16 @@ class ImageMagick {
 
         // ========== 噪点和纹理 ==========
         case 'noise':
-          // 添加噪点
-          const noiseType = params.noiseType || 'Uniform';
-          // ImageMagick 的噪点类型：Uniform, Gaussian, Impulse, Laplacian, Poisson, Random
-          args.push('-noise', noiseType);
+          // 添加噪点（ImageMagick 7：使用 +noise，而不是 -noise）
+          const noiseType = params.noiseType || params.type || 'Uniform';
+          const noiseAmountRaw = params.amount ?? params.intensity;
+          if (noiseAmountRaw !== undefined && noiseAmountRaw !== null && noiseAmountRaw !== '') {
+            const attenuate = Math.max(0, Math.min(1, Number(noiseAmountRaw) / 100));
+            if (!Number.isNaN(attenuate)) {
+              args.push('-attenuate', String(attenuate));
+            }
+          }
+          args.push('+noise', noiseType);
           break;
 
         case 'despeckle':
