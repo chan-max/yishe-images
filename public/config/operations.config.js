@@ -440,9 +440,9 @@
           baseType: 'flip'
         },
         ui: {
-          label: '垂直翻转',
+          label: '垂直翻转（上下翻转）',
           icon: 'arrows alternate vertical',
-          description: '上下翻转图片'
+          description: '上下翻转图片，镜像效果'
         },
         params: {
           defaults: {},
@@ -455,9 +455,39 @@
           baseType: 'flop'
         },
         ui: {
-          label: '水平翻转',
+          label: '水平翻转（左右翻转）',
           icon: 'arrows alternate horizontal',
-          description: '左右翻转图片'
+          description: '左右翻转图片，镜像效果'
+        },
+        params: {
+          defaults: {},
+          fields: []
+        }
+      },
+      {
+        meta: {
+          value: 'transpose',
+          baseType: 'transpose'
+        },
+        ui: {
+          label: '主对角线翻转',
+          icon: 'sync alternate',
+          description: '沿主对角线翻转（左上到右下），相当于旋转90度+水平翻转'
+        },
+        params: {
+          defaults: {},
+          fields: []
+        }
+      },
+      {
+        meta: {
+          value: 'transverse',
+          baseType: 'transverse'
+        },
+        ui: {
+          label: '副对角线翻转',
+          icon: 'sync',
+          description: '沿副对角线翻转（右上到左下），相当于旋转90度+垂直翻转'
         },
         params: {
           defaults: {},

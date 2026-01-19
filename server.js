@@ -142,6 +142,8 @@ function normalizeOperation(type, params = {}) {
     'extent',
     'flip',
     'flop',
+    'transpose',
+    'transverse',
   ]);
   if (basicTypes.has(type)) {
     return { type, params };
@@ -529,6 +531,14 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
       
     case 'flop':
       command = await imagemagick.flop(currentInputPath, outputPath);
+      break;
+      
+    case 'transpose':
+      command = await imagemagick.transpose(currentInputPath, outputPath);
+      break;
+      
+    case 'transverse':
+      command = await imagemagick.transverse(currentInputPath, outputPath);
       break;
       
     case 'filter': {
