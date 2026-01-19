@@ -340,6 +340,132 @@
       },
       {
         meta: {
+          value: 'trim',
+          baseType: 'trim'
+        },
+        ui: {
+          label: '自动裁剪边缘',
+          icon: 'crop',
+          description: '自动去除图片边缘的白色或透明区域'
+        },
+        params: {
+          defaults: {
+            fuzz: 0,
+            backgroundColor: null
+          },
+          fields: [
+            {
+              key: 'fuzz',
+              label: '容差值',
+              type: 'number',
+              unit: '%',
+              min: 0,
+              max: 100,
+              hint: '颜色容差值，范围：0-100%，推荐：0-5（用于判断边缘颜色）'
+            },
+            {
+              key: 'backgroundColor',
+              label: '背景颜色（可选）',
+              type: 'text',
+              hint: '指定要裁剪的背景颜色，留空则自动检测'
+            }
+          ]
+        }
+      },
+      {
+        meta: {
+          value: 'extent',
+          baseType: 'extent'
+        },
+        ui: {
+          label: '扩展画布',
+          icon: 'expand',
+          description: '扩展图片画布，在边缘填充背景色'
+        },
+        params: {
+          defaults: {
+            width: 800,
+            height: 600,
+            x: 0,
+            y: 0,
+            backgroundColor: 'white',
+            gravity: null
+          },
+          fields: [
+            {
+              key: 'width',
+              label: '宽度',
+              type: 'number',
+              unit: '像素',
+              min: 1,
+              hint: '扩展后的画布宽度'
+            },
+            {
+              key: 'height',
+              label: '高度',
+              type: 'number',
+              unit: '像素',
+              min: 1,
+              hint: '扩展后的画布高度'
+            },
+            {
+              key: 'backgroundColor',
+              label: '背景颜色',
+              type: 'text',
+              hint: '填充的背景颜色，支持颜色名称（如 white、transparent）或十六进制（如 #FFFFFF）'
+            },
+            {
+              key: 'gravity',
+              label: '对齐方式（可选）',
+              type: 'select',
+              options: [
+                { value: 'center', label: '居中' },
+                { value: 'north', label: '上' },
+                { value: 'south', label: '下' },
+                { value: 'east', label: '右' },
+                { value: 'west', label: '左' },
+                { value: 'northwest', label: '左上' },
+                { value: 'northeast', label: '右上' },
+                { value: 'southwest', label: '左下' },
+                { value: 'southeast', label: '右下' }
+              ],
+              hint: '图片在扩展画布中的对齐方式，留空则使用 x、y 坐标'
+            }
+          ]
+        }
+      },
+      {
+        meta: {
+          value: 'flip',
+          baseType: 'flip'
+        },
+        ui: {
+          label: '垂直翻转',
+          icon: 'arrows alternate vertical',
+          description: '上下翻转图片'
+        },
+        params: {
+          defaults: {},
+          fields: []
+        }
+      },
+      {
+        meta: {
+          value: 'flop',
+          baseType: 'flop'
+        },
+        ui: {
+          label: '水平翻转',
+          icon: 'arrows alternate horizontal',
+          description: '左右翻转图片'
+        },
+        params: {
+          defaults: {},
+          fields: []
+        }
+      },
+      {
+        meta: {
           value: 'filter-blur',
           baseType: 'filter',
           filterType: 'blur'
@@ -1669,6 +1795,315 @@
               min: 2,
               max: 256,
               hint: '量化后的颜色数量，范围：2-256，推荐：8-64（数值越小颜色越少，简化效果越明显）'
+            }
+          ]
+        }
+      },
+      {
+        meta: {
+          value: 'effects-adaptive-blur',
+          baseType: 'effects',
+          effectType: 'adaptive-blur'
+        },
+        ui: {
+          label: '自适应模糊',
+          icon: 'magic',
+          description: '根据图片内容自适应调整模糊效果'
+        },
+        params: {
+          defaults: {
+            radius: 5,
+            sigma: 5
+          },
+          fields: [
+            {
+              key: 'radius',
+              label: '半径',
+              type: 'number',
+              unit: '像素',
+              min: 1,
+              max: 100,
+              hint: '自适应模糊的半径，范围：1-100，推荐：5-20'
+            },
+            {
+              key: 'sigma',
+              label: 'Sigma',
+              type: 'number',
+              unit: '像素',
+              min: 0.1,
+              max: 10,
+              step: 0.1,
+              hint: '自适应模糊的标准差，范围：0.1-10，推荐：1-5'
+            }
+          ]
+        }
+      },
+      {
+        meta: {
+          value: 'effects-adaptive-sharpen',
+          baseType: 'effects',
+          effectType: 'adaptive-sharpen'
+        },
+        ui: {
+          label: '自适应锐化',
+          icon: 'magic',
+          description: '根据图片内容自适应调整锐化效果'
+        },
+        params: {
+          defaults: {
+            radius: 1,
+            sigma: 1
+          },
+          fields: [
+            {
+              key: 'radius',
+              label: '半径',
+              type: 'number',
+              unit: '像素',
+              min: 1,
+              max: 10,
+              hint: '自适应锐化的半径，范围：1-10，推荐：1-3'
+            },
+            {
+              key: 'sigma',
+              label: 'Sigma',
+              type: 'number',
+              unit: '像素',
+              min: 0.1,
+              max: 10,
+              step: 0.1,
+              hint: '自适应锐化的标准差，范围：0.1-10，推荐：0.5-2'
+            }
+          ]
+        }
+      },
+      {
+        meta: {
+          value: 'effects-morphology',
+          baseType: 'effects',
+          effectType: 'morphology'
+        },
+        ui: {
+          label: '形态学操作',
+          icon: 'magic',
+          description: '图像形态学处理（腐蚀、膨胀、开运算、闭运算等）'
+        },
+        params: {
+          defaults: {
+            method: 'Erode',
+            kernel: 'Disk',
+            size: 3
+          },
+          fields: [
+            {
+              key: 'method',
+              label: '方法',
+              type: 'select',
+              options: [
+                { value: 'Erode', label: '腐蚀' },
+                { value: 'Dilate', label: '膨胀' },
+                { value: 'Open', label: '开运算' },
+                { value: 'Close', label: '闭运算' },
+                { value: 'Smooth', label: '平滑' },
+                { value: 'EdgeIn', label: '边缘内' },
+                { value: 'EdgeOut', label: '边缘外' },
+                { value: 'TopHat', label: '顶帽' },
+                { value: 'BottomHat', label: '底帽' }
+              ],
+              hint: '形态学操作方法，推荐：Erode（腐蚀）、Dilate（膨胀）'
+            },
+            {
+              key: 'kernel',
+              label: '核类型',
+              type: 'select',
+              options: [
+                { value: 'Disk', label: '圆盘' },
+                { value: 'Rectangle', label: '矩形' },
+                { value: 'Diamond', label: '菱形' },
+                { value: 'Octagon', label: '八边形' },
+                { value: 'Plus', label: '十字' },
+                { value: 'Cross', label: '交叉' }
+              ],
+              hint: '形态学核的类型，推荐：Disk（圆盘）'
+            },
+            {
+              key: 'size',
+              label: '核大小',
+              type: 'number',
+              min: 1,
+              max: 50,
+              hint: '形态学核的大小，范围：1-50，推荐：3-10'
+            }
+          ]
+        }
+      },
+      {
+        meta: {
+          value: 'effects-colorspace',
+          baseType: 'effects',
+          effectType: 'colorspace'
+        },
+        ui: {
+          label: '色彩空间转换',
+          icon: 'magic',
+          description: '转换图片的色彩空间'
+        },
+        params: {
+          defaults: {
+            space: 'RGB'
+          },
+          fields: [
+            {
+              key: 'space',
+              label: '色彩空间',
+              type: 'select',
+              options: [
+                { value: 'RGB', label: 'RGB' },
+                { value: 'sRGB', label: 'sRGB' },
+                { value: 'Gray', label: '灰度' },
+                { value: 'CMYK', label: 'CMYK' },
+                { value: 'Lab', label: 'Lab' },
+                { value: 'HSL', label: 'HSL' },
+                { value: 'HSV', label: 'HSV' }
+              ],
+              hint: '目标色彩空间，推荐：RGB、sRGB、Gray'
+            }
+          ]
+        }
+      },
+      {
+        meta: {
+          value: 'effects-auto-level',
+          baseType: 'effects',
+          effectType: 'auto-level'
+        },
+        ui: {
+          label: '自动色阶',
+          icon: 'magic',
+          description: '自动调整图片色阶，增强对比度'
+        },
+        params: {
+          defaults: {},
+          fields: []
+        }
+      },
+      {
+        meta: {
+          value: 'effects-auto-gamma',
+          baseType: 'effects',
+          effectType: 'auto-gamma'
+        },
+        ui: {
+          label: '自动伽马',
+          icon: 'magic',
+          description: '自动调整图片伽马值'
+        },
+        params: {
+          defaults: {},
+          fields: []
+        }
+      },
+      {
+        meta: {
+          value: 'effects-auto-contrast',
+          baseType: 'effects',
+          effectType: 'auto-contrast'
+        },
+        ui: {
+          label: '自动对比度',
+          icon: 'magic',
+          description: '自动增强图片对比度'
+        },
+        params: {
+          defaults: {},
+          fields: []
+        }
+      },
+      {
+        meta: {
+          value: 'effects-color-matrix',
+          baseType: 'effects',
+          effectType: 'color-matrix'
+        },
+        ui: {
+          label: '颜色矩阵',
+          icon: 'magic',
+          description: '使用5x5颜色矩阵进行颜色变换（高级功能）'
+        },
+        params: {
+          defaults: {
+            matrix: [1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0, 0,0,0,0,1]
+          },
+          fields: [
+            {
+              key: 'matrix',
+              label: '颜色矩阵（25个数字）',
+              type: 'text',
+              hint: '5x5颜色矩阵，25个数字用逗号分隔，例如：1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1'
+            }
+          ]
+        }
+      },
+      {
+        meta: {
+          value: 'effects-distort',
+          baseType: 'effects',
+          effectType: 'distort'
+        },
+        ui: {
+          label: '扭曲变形',
+          icon: 'magic',
+          description: '对图片进行几何扭曲变形（高级功能）'
+        },
+        params: {
+          defaults: {
+            method: 'Perspective',
+            points: [0,0,0,0, 100,0,100,0, 100,100,100,100, 0,100,0,100]
+          },
+          fields: [
+            {
+              key: 'method',
+              label: '方法',
+              type: 'select',
+              options: [
+                { value: 'Perspective', label: '透视' },
+                { value: 'Affine', label: '仿射' },
+                { value: 'Arc', label: '弧形' },
+                { value: 'Polar', label: '极坐标' },
+                { value: 'Barrel', label: '桶形' }
+              ],
+              hint: '扭曲变形的方法，推荐：Perspective（透视）'
+            },
+            {
+              key: 'points',
+              label: '控制点（数组）',
+              type: 'text',
+              hint: '控制点数组，用逗号分隔，例如透视变换需要8个数字：x1,y1,x2,y2,x3,y3,x4,y4'
+            }
+          ]
+        }
+      },
+      {
+        meta: {
+          value: 'effects-fx',
+          baseType: 'effects',
+          effectType: 'fx'
+        },
+        ui: {
+          label: '自定义表达式',
+          icon: 'magic',
+          description: '使用ImageMagick FX表达式进行自定义处理（高级功能）'
+        },
+        params: {
+          defaults: {
+            expression: 'r'
+          },
+          fields: [
+            {
+              key: 'expression',
+              label: 'FX表达式',
+              type: 'text',
+              hint: 'ImageMagick FX表达式，例如：r（红色通道）、g（绿色通道）、b（蓝色通道）、(r+g+b)/3（平均值）'
             }
           ]
         }

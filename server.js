@@ -90,6 +90,29 @@ const FLAT_EFFECT_TYPE_MAP = {
   gamma: { baseType: 'effects', effectType: 'gamma', defaults: { value: 1.0 } },
   threshold: { baseType: 'effects', effectType: 'threshold', defaults: { value: 50 } },
   quantize: { baseType: 'effects', effectType: 'quantize', defaults: { colors: 256 } },
+  // 自适应效果
+  'adaptive-blur': { baseType: 'effects', effectType: 'adaptive-blur', defaults: { radius: 5, sigma: 5 } },
+  adaptive_blur: { baseType: 'effects', effectType: 'adaptive-blur', defaults: { radius: 5, sigma: 5 } },
+  'adaptive-sharpen': { baseType: 'effects', effectType: 'adaptive-sharpen', defaults: { radius: 1, sigma: 1 } },
+  adaptive_sharpen: { baseType: 'effects', effectType: 'adaptive-sharpen', defaults: { radius: 1, sigma: 1 } },
+  // 形态学操作
+  morphology: { baseType: 'effects', effectType: 'morphology', defaults: { method: 'Erode', kernel: 'Disk', size: 3 } },
+  // 颜色空间转换
+  colorspace: { baseType: 'effects', effectType: 'colorspace', defaults: { space: 'RGB' } },
+  // 自动调整
+  'auto-level': { baseType: 'effects', effectType: 'auto-level', defaults: {} },
+  auto_level: { baseType: 'effects', effectType: 'auto-level', defaults: {} },
+  'auto-gamma': { baseType: 'effects', effectType: 'auto-gamma', defaults: {} },
+  auto_gamma: { baseType: 'effects', effectType: 'auto-gamma', defaults: {} },
+  'auto-contrast': { baseType: 'effects', effectType: 'auto-contrast', defaults: {} },
+  auto_contrast: { baseType: 'effects', effectType: 'auto-contrast', defaults: {} },
+  // 颜色矩阵
+  'color-matrix': { baseType: 'effects', effectType: 'color-matrix', defaults: {} },
+  color_matrix: { baseType: 'effects', effectType: 'color-matrix', defaults: {} },
+  // 扭曲变形
+  distort: { baseType: 'effects', effectType: 'distort', defaults: {} },
+  // 自定义表达式
+  fx: { baseType: 'effects', effectType: 'fx', defaults: {} },
 };
 
 const FLAT_FILTER_TYPE_MAP = {
@@ -115,6 +138,10 @@ function normalizeOperation(type, params = {}) {
     'convert',
     'watermark',
     'adjust',
+    'trim',
+    'extent',
+    'flip',
+    'flop',
   ]);
   if (basicTypes.has(type)) {
     return { type, params };
@@ -476,6 +503,32 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
         contrast: parseFloat(params.contrast) || 0,
         saturation: parseFloat(params.saturation) || 0
       });
+      break;
+      
+    case 'trim':
+      command = await imagemagick.trim(currentInputPath, outputPath, {
+        fuzz: params.fuzz !== undefined ? parseFloat(params.fuzz) : 0,
+        backgroundColor: params.backgroundColor
+      });
+      break;
+      
+    case 'extent':
+      command = await imagemagick.extent(currentInputPath, outputPath, {
+        width: parseInt(params.width),
+        height: parseInt(params.height),
+        x: parseInt(params.x) || 0,
+        y: parseInt(params.y) || 0,
+        backgroundColor: params.backgroundColor || 'white',
+        gravity: params.gravity
+      });
+      break;
+      
+    case 'flip':
+      command = await imagemagick.flip(currentInputPath, outputPath);
+      break;
+      
+    case 'flop':
+      command = await imagemagick.flop(currentInputPath, outputPath);
       break;
       
     case 'filter': {
