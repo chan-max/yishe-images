@@ -844,15 +844,22 @@
                     </template>
                     
                     <template v-else-if="state.operationChain[state.selectedOperationIndex].type === 'crop'">
+                      <div class="field">
+                        <div class="ui checkbox">
+                          <input type="checkbox" v-model="state.operationChain[state.selectedOperationIndex].params.maintainAspectRatio">
+                          <label>按比例居中裁剪（忽略 X/Y）</label>
+                        </div>
+                        <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">勾选后将按宽高比例自动居中裁剪，适合做“封面裁剪/不变形裁剪”</p>
+                      </div>
                       <div class="two fields">
                         <div class="field">
                           <label>X坐标 <span style="color: #999; font-weight: normal;">(像素)</span></label>
-                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.x" placeholder="X坐标">
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.x" placeholder="X坐标" :disabled="state.operationChain[state.selectedOperationIndex].params.maintainAspectRatio">
                           <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">裁剪区域左上角的X坐标，范围：0-图片宽度，推荐：从0开始</p>
                         </div>
                         <div class="field">
                           <label>Y坐标 <span style="color: #999; font-weight: normal;">(像素)</span></label>
-                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.y" placeholder="Y坐标">
+                          <input type="number" v-model.number="state.operationChain[state.selectedOperationIndex].params.y" placeholder="Y坐标" :disabled="state.operationChain[state.selectedOperationIndex].params.maintainAspectRatio">
                           <p style="font-size: 0.75em; color: #999; margin-top: 0.25rem;">裁剪区域左上角的Y坐标，范围：0-图片高度，推荐：从0开始</p>
                         </div>
                       </div>

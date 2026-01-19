@@ -452,6 +452,53 @@ async function executeOperation(type, params, currentInputPath, outputPath) {
         }
         const x = parseInt(params.x);
         const y = parseInt(params.y);
+        const maintainAspectRatio = params.maintainAspectRatio === true;
+
+        // 当 maintainAspectRatio=true 时：忽略 x/y，按目标宽高比例居中裁剪（更符合“按比例裁剪”的直觉）
+        if (maintainAspectRatio) {
+          const info = await imageProcessor.identify(currentInputPath);
+          const imgW = Number(info?.width);
+          const imgH = Number(info?.height);
+          if (Number.isFinite(imgW) && imgW > 0 && Number.isFinite(imgH) && imgH > 0) {
+            const targetRatio = width / height;
+            const imgRatio = imgW / imgH;
+
+            let cropW;
+            let cropH;
+            let cropX;
+            let cropY;
+
+            if (imgRatio > targetRatio) {
+              // 图更“宽”：左右裁掉，保留全高
+              cropH = imgH;
+              cropW = Math.round(imgH * targetRatio);
+              cropX = Math.round((imgW - cropW) / 2);
+              cropY = 0;
+            } else {
+              // 图更“高”：上下裁掉，保留全宽
+              cropW = imgW;
+              cropH = Math.round(imgW / targetRatio);
+              cropX = 0;
+              cropY = Math.round((imgH - cropH) / 2);
+            }
+
+            // 兜底：确保为正整数且不越界
+            cropW = Math.max(1, Math.min(imgW, cropW));
+            cropH = Math.max(1, Math.min(imgH, cropH));
+            cropX = Math.max(0, Math.min(imgW - cropW, cropX));
+            cropY = Math.max(0, Math.min(imgH - cropH, cropY));
+
+            command = await imageProcessor.crop(currentInputPath, outputPath, {
+              x: cropX,
+              y: cropY,
+              width: cropW,
+              height: cropH
+            });
+            break;
+          }
+          // 如果识别尺寸失败，就回退到普通 crop（按像素框裁剪）
+        }
+
         command = await imageProcessor.crop(currentInputPath, outputPath, {
           x: Number.isFinite(x) ? x : 0,
           y: Number.isFinite(y) ? y : 0,

@@ -76,7 +76,9 @@ function initApp() {
             x: 0,
             y: 0,
             width: null,
-            height: null
+            height: null,
+            // 勾选后忽略 x/y，按目标宽高比例居中裁剪
+            maintainAspectRatio: false
           },
           rotate: {
             degrees: 0,
@@ -1868,7 +1870,7 @@ function initApp() {
         // 向后兼容：使用内联默认值
         const baseDefaults = {
           resize: { width: 800, height: 600, maintainAspectRatio: true, quality: 90 },
-          crop: { x: 0, y: 0, width: 500, height: 500 },
+          crop: { x: 0, y: 0, width: 500, height: 500, maintainAspectRatio: false },
           shapeCrop: { shape: 'circle', x: null, y: null, width: 200, height: 200, backgroundColor: 'transparent' },
           rotate: { degrees: 90, backgroundColor: '#000000' },
           convert: { format: 'jpg', quality: 90 },
