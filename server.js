@@ -245,7 +245,7 @@ app.use(express.static('public'));
 // Swagger 文档
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'ImageMagick API 文档'
+  customSiteTitle: 'Yishe Image API 文档'
 }));
 
 // 确保必要的目录存在
@@ -898,7 +898,7 @@ app.post('/api/info', async (req, res) => {
  *                   type: array
  *                   items:
  *                     type: string
- *                   description: 执行的 ImageMagick 命令列表
+ *                   description: 执行的图像处理命令列表
  *                 source:
  *                   type: string
  *                   enum: [local, url]
@@ -965,7 +965,7 @@ app.post('/api/process', async (req, res) => {
  *   post:
  *     summary: 通过AI分析自然语言prompt并处理图片
  *     tags: [AI处理]
- *     description: 接收自然语言描述和图片URL，通过AI分析生成ImageMagick命令并执行
+ *     description: 接收自然语言描述和图片URL，通过AI分析生成处理命令并执行
  *     requestBody:
  *       required: true
  *       content:
@@ -1008,12 +1008,12 @@ app.post('/api/process', async (req, res) => {
  *                   description: AI分析出的操作数组
  *                 command:
  *                   type: string
- *                   description: AI分析出的ImageMagick命令描述
+ *                   description: AI分析出的处理命令描述
  *                 executedCommands:
  *                   type: array
  *                   items:
  *                     type: string
- *                   description: 实际执行的ImageMagick命令
+ *                   description: 实际执行的图像处理命令
  *       400:
  *         description: 参数错误或AI服务不可用
  *       500:
@@ -1097,7 +1097,7 @@ app.post('/api/process-with-prompt', async (req, res) => {
  *   get:
  *     summary: 健康检查
  *     tags: [Health]
- *     description: 检查服务健康状态和 ImageMagick 安装状态
+ *     description: 检查服务健康状态和图像处理引擎状态
  *     responses:
  *       200:
  *         description: 服务状态
@@ -1127,9 +1127,9 @@ app.get('/api/health', async (req, res) => {
  * @swagger
  * /api/imagemagick-status:
  *   get:
- *     summary: 检测 ImageMagick 安装状态
+ *     summary: 检测图像处理引擎状态
  *     tags: [Health]
- *     description: 检测 ImageMagick 是否已安装及其版本信息
+ *     description: 检测图像处理引擎是否已安装及其版本信息
  *     responses:
  *       200:
  *         description: 检测成功
@@ -1405,7 +1405,7 @@ function formatFileSize(bytes) {
  *   get:
  *     summary: 健康检查
  *     tags: [Health]
- *     description: 检查服务健康状态和 ImageMagick 安装状态
+ *     description: 检查服务健康状态和图像处理引擎状态
  *     responses:
  *       200:
  *         description: 服务状态
@@ -1435,9 +1435,9 @@ app.get('/api/health', async (req, res) => {
  * @swagger
  * /api/imagemagick-status:
  *   get:
- *     summary: 检测 ImageMagick 安装状态
+ *     summary: 检测图像处理引擎状态
  *     tags: [Health]
- *     description: 检测 ImageMagick 是否已安装及其版本信息
+ *     description: 检测图像处理引擎是否已安装及其版本信息
  *     responses:
  *       200:
  *         description: 检测成功
@@ -1702,6 +1702,6 @@ app.delete('/api/files/clear', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`服务器运行在 http://localhost:${PORT}`);
   console.log(`Swagger API 文档: http://localhost:${PORT}/api-docs`);
-  console.log('请确保已安装 ImageMagick: https://imagemagick.org/script/download.php');
+  console.log('Yishe Image 服务已启动');
 });
 

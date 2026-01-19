@@ -350,17 +350,17 @@ function initApp() {
         }
       }
 
-      // 检测 ImageMagick
+      // 检测图像处理引擎
       async function checkImageMagick() {
         state.loading.checkIm = true;
-        addDebugLog('开始检测 ImageMagick...', 'info');
+        addDebugLog('开始检测图像处理引擎...', 'info');
         try {
           const { data } = await axios.get(`${BASE_URL}/api/imagemagick-status`);
           state.imagemagickStatus = data;
-          addDebugLog(`ImageMagick 检测: ${data.message}`, data.installed ? 'success' : 'error');
+          addDebugLog(`图像处理引擎检测: ${data.message}`, data.installed ? 'success' : 'error');
         } catch (e) {
           state.imagemagickStatus = { installed: false, message: '检测失败' };
-          addDebugLog(`ImageMagick 检测失败: ${e.response?.data?.error || e.message}`, 'error');
+          addDebugLog(`图像处理引擎检测失败: ${e.response?.data?.error || e.message}`, 'error');
         } finally {
           state.loading.checkIm = false;
         }

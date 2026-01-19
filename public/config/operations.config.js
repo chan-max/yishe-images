@@ -8,7 +8,7 @@
  * - params: 参数配置（defaults 默认值, fields 表单字段定义）
  * 
  * 注意：所有操作已平铺到一个数组中，不再区分 base、filters、effects
- * 因为每个操作最终都会对应生成一条 ImageMagick 命令
+ * 因为每个操作最终都会对应生成一条图像处理命令
  */
 
 (function(global) {
@@ -2122,7 +2122,7 @@
         ui: {
           label: '自定义表达式',
           icon: 'magic',
-          description: '使用ImageMagick FX表达式进行自定义处理（高级功能）'
+          description: '使用FX表达式进行自定义处理（高级功能）'
         },
         params: {
           defaults: {
@@ -2133,7 +2133,7 @@
               key: 'expression',
               label: 'FX表达式',
               type: 'text',
-              hint: 'ImageMagick FX表达式，例如：r（红色通道）、g（绿色通道）、b（蓝色通道）、(r+g+b)/3（平均值）'
+              hint: 'FX表达式，例如：r（红色通道）、g（绿色通道）、b（蓝色通道）、(r+g+b)/3（平均值）'
             }
           ]
         }

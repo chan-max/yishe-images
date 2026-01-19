@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ImageMagick 图像处理服务控制台</title>
+  <title>Yishe Image 图像处理服务控制台</title>
   <!-- Semantic UI CSS -->
   <link rel="stylesheet" href="/lib/semantic.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.5.0/semantic.min.css">
@@ -474,7 +474,7 @@
         <div class="sidebar-header">
           <h2>
             <i class="image icon"></i>
-            ImageMagick 服务
+            Yishe Image 服务
           </h2>
         </div>
         <div class="sidebar-menu">
@@ -500,7 +500,7 @@
               <i class="book icon"></i>
               <div class="content">
                 使用指南
-                <div class="sub header">了解如何使用 ImageMagick 图像处理服务</div>
+                <div class="sub header">了解如何使用 Yishe Image 图像处理服务</div>
               </div>
             </h1>
 
@@ -509,7 +509,7 @@
                 <div class="ui segment">
                   <h3 class="ui header">操作步骤</h3>
                   <ol class="ui list">
-                    <li>先进行健康检查，确认 ImageMagick 已安装。</li>
+                    <li>先进行健康检查，确认图像处理引擎已就绪。</li>
                     <li>上传图片文件（支持拖拽上传）。</li>
                     <li>选择需要的操作（调整大小、裁剪、旋转等）。</li>
                     <li>设置参数并执行操作。</li>
@@ -521,7 +521,7 @@
                 <div class="ui segment">
                   <h3 class="ui header">注意事项</h3>
                   <ul class="ui list">
-                    <li>确保 ImageMagick 已正确安装并在系统 PATH 中</li>
+                    <li>确保图像处理引擎已正确安装并配置</li>
                     <li>支持格式：JPG, PNG, GIF, BMP, WEBP, SVG, TIFF</li>
                     <li>上传文件大小限制：100MB</li>
                     <li>处理后的文件保存在 output 目录</li>
@@ -539,7 +539,7 @@
               <i class="cog icon"></i>
               <div class="content">
                 服务配置
-                <div class="sub header">配置服务和检测 ImageMagick 状态</div>
+                <div class="sub header">配置服务和检测图像处理引擎状态</div>
               </div>
             </h1>
 
@@ -550,7 +550,7 @@
                   健康检查
                 </button>
                 <button class="ui small primary button" :class="{ loading: state.loading.checkIm }" @click="checkImageMagick" :disabled="state.loading.checkIm">
-                  检测 ImageMagick
+                  检测引擎状态
                 </button>
               </div>
               <div style="margin-top: 1rem;">
@@ -1222,7 +1222,7 @@
               <i class="magic icon"></i>
               <div class="content">
                 AI智能处理
-                <div class="sub header">通过自然语言描述处理图片，AI自动生成ImageMagick命令</div>
+                <div class="sub header">通过自然语言描述处理图片，AI自动生成处理命令</div>
               </div>
             </h1>
 
@@ -1260,7 +1260,7 @@
                   <label style="font-size: 0.85em; margin-bottom: 0.25rem;">自然语言描述</label>
                   <textarea v-model="state.aiProcessPrompt" placeholder="例如：请将这个图片裁剪成方形，然后转变成黑白色" rows="3" style="font-size: 0.9em;"></textarea>
                   <p style="color: #999; font-size: 0.8em; margin-top: 0.5rem;">
-                    用自然语言描述你想要对图片进行的处理，AI会自动分析并生成相应的ImageMagick命令。
+                    用自然语言描述你想要对图片进行的处理，AI会自动分析并生成相应的处理命令。
                     <br>示例：
                     <br>- "请将这个图片裁剪成方形，然后转变成黑白色"
                     <br>- "调整图片大小为800x600，然后添加模糊效果"

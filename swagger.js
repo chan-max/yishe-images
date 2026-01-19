@@ -4,9 +4,9 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'ImageMagick 图像处理 API',
+      title: 'Yishe Image 图像处理 API',
       version: '1.0.0',
-      description: '基于 ImageMagick 的全面图像处理服务 API 文档',
+      description: 'Yishe Image 全面图像处理服务 API 文档',
       contact: {
         name: 'API Support',
       },

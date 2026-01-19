@@ -7,7 +7,7 @@ WORKDIR /app
 
 # 设置维护者信息
 LABEL maintainer="yishe-images"
-LABEL description="ImageMagick 图像处理服务 - Docker 镜像"
+LABEL description="Yishe Image 图像处理服务 - Docker 镜像"
 
 # 安装 ImageMagick 和必要的依赖
 # 使用 apt-get 安装 ImageMagick 7（magick 命令）
