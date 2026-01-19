@@ -157,7 +157,6 @@ yishe-images/
 - `POST /api/effects` - 应用图片效果
 - `POST /api/process` - 链式处理（统一接口）
 - `POST /api/process-with-prompt` - AI智能处理（通过自然语言描述处理图片）
-- `POST /api/execute-command` - 直接执行ImageMagick命令
 
 完整 API 文档：http://localhost:1513/api-docs
 
@@ -218,17 +217,6 @@ yishe-images/
      {
        "prompt": "请将这个图片裁剪成方形，然后转变成黑白色",
        "image": "https://example.com/image.jpg"
-     }
-     ```
-
-3. **直接执行命令接口**
-   - 访问UI页面：http://localhost:1513，选择"直接执行命令"
-   - 或直接调用API：
-     ```json
-     POST /api/execute-command
-     {
-       "image": "https://example.com/image.jpg",
-       "command": ["-resize", "800x600", "-colorspace", "Gray"]
      }
      ```
 

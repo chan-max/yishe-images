@@ -360,6 +360,263 @@ function isValidHttpUrl(str) {
 }
 
 /**
+ * 获取图片路径（处理 URL 或本地文件）
+ * @param {string} image - 图片 URL 或本地文件名
+ * @param {string} uploadsDir - 上传目录路径
+ * @returns {Promise<{actualFilename: string, inputPath: string, downloadedFileInfo: object|null}>}
+ */
+async function getImagePath(image, uploadsDir) {
+  let downloadedFileInfo = null;
+  let actualFilename = null;
+  let inputPath;
+
+  if (isValidHttpUrl(image)) {
+    try {
+      console.log(`检测到网络图片 URL，开始下载: ${image}`);
+      downloadedFileInfo = await downloadFromUrl(image, uploadsDir);
+      actualFilename = downloadedFileInfo.filename;
+      inputPath = downloadedFileInfo.path;
+      console.log(`网络图片下载成功: ${actualFilename}`);
+    } catch (downloadError) {
+      throw new Error(`下载网络图片失败: ${downloadError.message}`);
+    }
+  } else {
+    actualFilename = image;
+    inputPath = path.join(uploadsDir, image);
+    if (!fs.existsSync(inputPath)) {
+      throw new Error('文件不存在');
+    }
+  }
+
+  return { actualFilename, inputPath, downloadedFileInfo };
+}
+
+/**
+ * 执行单个操作
+ * @param {string} type - 操作类型
+ * @param {object} params - 操作参数
+ * @param {string} currentInputPath - 当前输入文件路径
+ * @param {string} outputPath - 输出文件路径
+ * @returns {Promise<string>} 返回执行的命令
+ */
+async function executeOperation(type, params, currentInputPath, outputPath) {
+  let command;
+  let finalOutputPath = outputPath;
+
+  switch (type) {
+    case 'resize':
+      command = await imagemagick.resize(currentInputPath, outputPath, {
+        width: parseInt(params.width),
+        height: parseInt(params.height),
+        quality: params.quality || 90,
+        maintainAspectRatio: params.maintainAspectRatio !== false
+      });
+      break;
+      
+    case 'crop':
+      command = await imagemagick.crop(currentInputPath, outputPath, {
+        x: parseInt(params.x) || 0,
+        y: parseInt(params.y) || 0,
+        width: parseInt(params.width),
+        height: parseInt(params.height)
+      });
+      break;
+      
+    case 'shapeCrop':
+      const baseName = path.parse(currentInputPath).name;
+      const shapeOutputPath = outputPath.replace(/\.[^.]+$/, '.png');
+      command = await imagemagick.shapeCrop(currentInputPath, shapeOutputPath, {
+        shape: params.shape,
+        x: params.x !== undefined ? parseInt(params.x) : null,
+        y: params.y !== undefined ? parseInt(params.y) : null,
+        width: parseInt(params.width) || 200,
+        height: parseInt(params.height) || 200,
+        backgroundColor: params.backgroundColor || 'transparent'
+      });
+      finalOutputPath = shapeOutputPath;
+      break;
+      
+    case 'rotate':
+      command = await imagemagick.rotate(currentInputPath, outputPath, {
+        degrees: parseFloat(params.degrees) || 0,
+        backgroundColor: params.backgroundColor || '#000000'
+      });
+      break;
+      
+    case 'convert':
+      const convertOutputPath = outputPath.replace(/\.[^.]+$/, `.${params.format || 'jpg'}`);
+      command = await imagemagick.convert(currentInputPath, convertOutputPath, {
+        format: params.format || 'jpg',
+        quality: params.quality || 90
+      });
+      finalOutputPath = convertOutputPath;
+      break;
+      
+    case 'watermark':
+      command = await imagemagick.watermark(currentInputPath, outputPath, {
+        type: params.type || 'text',
+        text: params.text || '',
+        fontSize: parseInt(params.fontSize) || 24,
+        fontFamily: params.fontFamily || 'Microsoft YaHei',
+        color: params.color || '#FFFFFF',
+        strokeColor: params.strokeColor || '',
+        strokeWidth: parseInt(params.strokeWidth) || 0,
+        watermarkImageFilename: params.watermarkImageFilename,
+        watermarkScale: parseFloat(params.watermarkScale) || 1.0,
+        position: params.position || 'bottom-right',
+        x: params.x !== undefined ? parseInt(params.x) : null,
+        y: params.y !== undefined ? parseInt(params.y) : null,
+        opacity: parseFloat(params.opacity) || 1.0
+      });
+      break;
+      
+    case 'adjust':
+      command = await imagemagick.adjust(currentInputPath, outputPath, {
+        brightness: parseFloat(params.brightness) || 0,
+        contrast: parseFloat(params.contrast) || 0,
+        saturation: parseFloat(params.saturation) || 0
+      });
+      break;
+      
+    case 'filter': {
+      command = await imagemagick.applyFilter(currentInputPath, outputPath, {
+        filterType: params.filterType,
+        intensity: params.intensity !== undefined ? parseFloat(params.intensity) || 1 : 1,
+      });
+      break;
+    }
+
+    case 'effects': {
+      // effects 统一走数组形式，支持单个或多个效果
+      let effectsArray = [];
+
+      if (Array.isArray(params.effects) && params.effects.length > 0) {
+        // 显式传入 effects 数组
+        effectsArray = params.effects.map(e => {
+          const { effectType, type: t, ...rest } = e;
+          return {
+            type: effectType || t,
+            ...rest,
+          };
+        });
+      } else {
+        // 兼容旧格式：单个 effectType + 其它参数
+        const effect = {
+          type: params.effectType || params.type,
+        };
+
+        Object.keys(params).forEach(k => {
+          if (k === 'effectType' || k === 'type') return;
+          effect[k] = params[k];
+        });
+
+        effectsArray = [effect];
+      }
+
+      command = await imagemagick.applyEffects(currentInputPath, outputPath, effectsArray);
+      break;
+    }
+      
+    default:
+      throw new Error(`不支持的操作类型: ${type}`);
+  }
+
+  return { command, outputPath: finalOutputPath };
+}
+
+/**
+ * 执行操作链（链式处理）
+ * @param {string} inputPath - 输入文件路径
+ * @param {string} actualFilename - 实际文件名（用于生成输出文件名）
+ * @param {Array} operations - 操作数组
+ * @param {string} outputDir - 输出目录
+ * @param {string} outputPrefix - 输出文件名前缀（如 'processed_' 或 'ai_processed_'）
+ * @returns {Promise<{outputPath: string, outputFilename: string, commands: Array<string>}>}
+ */
+async function executeOperationsChain(inputPath, actualFilename, operations, outputDir, outputPrefix = 'processed_') {
+  let currentInputPath = inputPath;
+  const commands = [];
+  const tempFiles = [];
+
+  try {
+    for (let i = 0; i < operations.length; i++) {
+      const operation = operations[i];
+      const rawType = operation.type;
+      const rawParams = operation.params || {};
+
+      // 统一归一化：支持基础类型 + 平铺小颗粒类型
+      const { type, params } = normalizeOperation(rawType, rawParams);
+      
+      if (!type) {
+        throw new Error(`操作 ${i + 1} 缺少 type 字段`);
+      }
+      
+      // 生成临时输出文件路径（最后一个操作使用最终输出路径）
+      let outputPath;
+      if (i === operations.length - 1) {
+        // 最后一个操作，使用最终输出文件名
+        const baseName = path.parse(actualFilename).name;
+        const ext = params.format ? `.${params.format}` : path.extname(actualFilename);
+        const outputFilename = `${outputPrefix}${Date.now()}_${baseName}${ext}`;
+        outputPath = path.join(outputDir, outputFilename);
+      } else {
+        // 中间操作，使用临时文件
+        const tempFilename = `temp_${Date.now()}_${i}.${path.extname(currentInputPath).slice(1) || 'jpg'}`;
+        outputPath = path.join(outputDir, tempFilename);
+        tempFiles.push(outputPath);
+      }
+      
+      // 执行操作
+      const { command, outputPath: finalOutputPath } = await executeOperation(type, params, currentInputPath, outputPath);
+      commands.push(command);
+      
+      // 如果当前输入是临时文件，且不是最后一个操作，可以删除
+      if (i > 0 && currentInputPath !== inputPath && fs.existsSync(currentInputPath)) {
+        try {
+          fs.unlinkSync(currentInputPath);
+        } catch (e) {
+          console.warn(`删除临时文件失败: ${currentInputPath}`, e.message);
+        }
+      }
+      
+      // 更新当前输入路径为输出路径
+      currentInputPath = finalOutputPath;
+    }
+    
+    // 清理所有临时文件
+    tempFiles.forEach(tempFile => {
+      if (fs.existsSync(tempFile) && tempFile !== currentInputPath) {
+        try {
+          fs.unlinkSync(tempFile);
+        } catch (e) {
+          console.warn(`清理临时文件失败: ${tempFile}`, e.message);
+        }
+      }
+    });
+    
+    const outputFilename = path.basename(currentInputPath);
+    
+    return {
+      outputPath: currentInputPath,
+      outputFilename,
+      commands
+    };
+  } catch (error) {
+    // 清理所有临时文件
+    tempFiles.forEach(tempFile => {
+      if (fs.existsSync(tempFile)) {
+        try {
+          fs.unlinkSync(tempFile);
+        } catch (e) {
+          // 忽略清理错误
+        }
+      }
+    });
+    throw error;
+  }
+}
+
+/**
  * @swagger
  * /api/upload:
  *   post:
@@ -594,9 +851,6 @@ app.post('/api/info', async (req, res) => {
  *         description: 处理失败
  */
 app.post('/api/process', async (req, res) => {
-  let downloadedFileInfo = null; // 记录是否下载了网络图片
-  let actualFilename = null; // 实际使用的文件名
-  
   try {
     const { filename, operations } = req.body;
     
@@ -608,261 +862,167 @@ app.post('/api/process', async (req, res) => {
       return res.status(400).json({ error: 'operations 必须是非空数组' });
     }
     
-    // 检查 filename 是否是网络 URL
-    let inputPath;
-    if (isValidHttpUrl(filename)) {
-      // 如果是网络 URL，下载到 uploads 目录
-      try {
-        console.log(`检测到网络图片 URL，开始下载: ${filename}`);
-        downloadedFileInfo = await downloadFromUrl(filename, uploadsDir);
-        actualFilename = downloadedFileInfo.filename;
-        inputPath = downloadedFileInfo.path;
-        console.log(`网络图片下载成功: ${actualFilename}`);
-      } catch (downloadError) {
-        return res.status(400).json({ 
-          error: `下载网络图片失败: ${downloadError.message}` 
-        });
-      }
-    } else {
-      // 本地文件名，从 uploads 目录读取
-      actualFilename = filename;
-      inputPath = path.join(uploadsDir, filename);
-      if (!fs.existsSync(inputPath)) {
-        return res.status(404).json({ error: '文件不存在' });
-      }
-    }
-    
-    // 链式处理：每个操作的输出作为下一个操作的输入
-    let currentInputPath = inputPath;
-    const commands = [];
-    const tempFiles = [];
-    
+    // 获取图片路径（处理 URL 或本地文件）
+    let imagePathInfo;
     try {
-      for (let i = 0; i < operations.length; i++) {
-        const operation = operations[i];
-        const rawType = operation.type;
-        const rawParams = operation.params || {};
-
-        // 统一归一化：支持基础类型 + 平铺小颗粒类型
-        const { type, params } = normalizeOperation(rawType, rawParams);
-        
-        if (!type) {
-          throw new Error(`操作 ${i + 1} 缺少 type 字段`);
-        }
-        
-        // 生成临时输出文件路径（最后一个操作使用最终输出路径）
-        let outputPath;
-        if (i === operations.length - 1) {
-          // 最后一个操作，使用最终输出文件名
-          const baseName = path.parse(filename).name;
-          const ext = params.format ? `.${params.format}` : path.extname(filename);
-          const outputFilename = `processed_${Date.now()}_${baseName}${ext}`;
-          outputPath = path.join(outputDir, outputFilename);
-        } else {
-          // 中间操作，使用临时文件
-          const tempFilename = `temp_${Date.now()}_${i}.${path.extname(currentInputPath).slice(1) || 'jpg'}`;
-          outputPath = path.join(outputDir, tempFilename);
-          tempFiles.push(outputPath);
-        }
-        
-        let command;
-        
-        // 根据操作类型调用相应的处理函数
-        switch (type) {
-          case 'resize':
-            command = await imagemagick.resize(currentInputPath, outputPath, {
-              width: parseInt(params.width),
-              height: parseInt(params.height),
-              quality: params.quality || 90,
-              maintainAspectRatio: params.maintainAspectRatio !== false
-            });
-            break;
-            
-          case 'crop':
-            command = await imagemagick.crop(currentInputPath, outputPath, {
-              x: parseInt(params.x) || 0,
-              y: parseInt(params.y) || 0,
-              width: parseInt(params.width),
-              height: parseInt(params.height)
-            });
-            break;
-            
-          case 'shapeCrop':
-            const baseName = path.parse(currentInputPath).name;
-            const shapeOutputPath = outputPath.replace(/\.[^.]+$/, '.png');
-            command = await imagemagick.shapeCrop(currentInputPath, shapeOutputPath, {
-              shape: params.shape,
-              x: params.x !== undefined ? parseInt(params.x) : null,
-              y: params.y !== undefined ? parseInt(params.y) : null,
-              width: parseInt(params.width) || 200,
-              height: parseInt(params.height) || 200,
-              backgroundColor: params.backgroundColor || 'transparent'
-            });
-            outputPath = shapeOutputPath;
-            break;
-            
-          case 'rotate':
-            command = await imagemagick.rotate(currentInputPath, outputPath, {
-              degrees: parseFloat(params.degrees) || 0,
-              backgroundColor: params.backgroundColor || '#000000'
-            });
-            break;
-            
-          case 'convert':
-            const convertOutputPath = outputPath.replace(/\.[^.]+$/, `.${params.format || 'jpg'}`);
-            command = await imagemagick.convert(currentInputPath, convertOutputPath, {
-              format: params.format || 'jpg',
-              quality: params.quality || 90
-            });
-            outputPath = convertOutputPath;
-            break;
-            
-          case 'watermark':
-            command = await imagemagick.watermark(currentInputPath, outputPath, {
-              type: params.type || 'text',
-              text: params.text || '',
-              fontSize: parseInt(params.fontSize) || 24,
-              fontFamily: params.fontFamily || 'Microsoft YaHei',
-              color: params.color || '#FFFFFF',
-              strokeColor: params.strokeColor || '',
-              strokeWidth: parseInt(params.strokeWidth) || 0,
-              watermarkImageFilename: params.watermarkImageFilename,
-              watermarkScale: parseFloat(params.watermarkScale) || 1.0,
-              position: params.position || 'bottom-right',
-              x: params.x !== undefined ? parseInt(params.x) : null,
-              y: params.y !== undefined ? parseInt(params.y) : null,
-              opacity: parseFloat(params.opacity) || 1.0
-            });
-            break;
-            
-          case 'adjust':
-            command = await imagemagick.adjust(currentInputPath, outputPath, {
-              brightness: parseFloat(params.brightness) || 0,
-              contrast: parseFloat(params.contrast) || 0,
-              saturation: parseFloat(params.saturation) || 0
-            });
-            break;
-            
-          case 'filter': {
-            command = await imagemagick.applyFilter(currentInputPath, outputPath, {
-              filterType: params.filterType,
-              intensity: params.intensity !== undefined ? parseFloat(params.intensity) || 1 : 1,
-            });
-            break;
-          }
-
-          case 'effects': {
-            // effects 统一走数组形式，支持单个或多个效果
-            let effectsArray = [];
-
-            if (Array.isArray(params.effects) && params.effects.length > 0) {
-              // 显式传入 effects 数组
-              effectsArray = params.effects.map(e => {
-                const { effectType, type: t, ...rest } = e;
-                return {
-                  type: effectType || t,
-                  ...rest,
-                };
-              });
-            } else {
-              // 兼容旧格式：单个 effectType + 其它参数
-              const effect = {
-                type: params.effectType || params.type,
-              };
-
-              Object.keys(params).forEach(k => {
-                if (k === 'effectType' || k === 'type') return;
-                effect[k] = params[k];
-              });
-
-              effectsArray = [effect];
-            }
-
-            command = await imagemagick.applyEffects(currentInputPath, outputPath, effectsArray);
-            break;
-          }
-            
-          default:
-            throw new Error(`不支持的操作类型: ${type}`);
-        }
-        
-        commands.push(command);
-        
-        // 如果当前输入是临时文件，且不是最后一个操作，可以删除
-        if (i > 0 && currentInputPath !== inputPath && fs.existsSync(currentInputPath)) {
-          try {
-            fs.unlinkSync(currentInputPath);
-          } catch (e) {
-            console.warn(`删除临时文件失败: ${currentInputPath}`, e.message);
-          }
-        }
-        
-        // 更新当前输入路径为输出路径
-        currentInputPath = outputPath;
-      }
-      
-      // 清理所有临时文件
-      tempFiles.forEach(tempFile => {
-        if (fs.existsSync(tempFile) && tempFile !== currentInputPath) {
-          try {
-            fs.unlinkSync(tempFile);
-          } catch (e) {
-            console.warn(`清理临时文件失败: ${tempFile}`, e.message);
-          }
-        }
-      });
-      
-      // 如果是从网络下载的图片，可以选择是否清理
-      // 这里暂时保留，如果需要自动清理可以取消注释下面的代码
-      // if (downloadedFileInfo && fs.existsSync(downloadedFileInfo.path)) {
-      //   try {
-      //     fs.unlinkSync(downloadedFileInfo.path);
-      //     console.log(`已清理下载的临时文件: ${downloadedFileInfo.filename}`);
-      //   } catch (e) {
-      //     console.warn(`清理下载的临时文件失败: ${downloadedFileInfo.path}`, e.message);
-      //   }
-      // }
-      
-      const outputFilename = path.basename(currentInputPath);
-      const outputPath = `/output/${outputFilename}`;
-      
-      // 构建完整的图片 URL
-      const baseUrl = req.protocol + '://' + req.get('host');
-      const outputUrl = `${baseUrl}${outputPath}`;
-      
-      res.json({
-        success: true,
-        outputFile: outputFilename,
-        path: outputPath,
-        url: outputUrl,
-        commands: commands,
-        source: downloadedFileInfo ? 'url' : 'local',
-        originalFilename: downloadedFileInfo ? downloadedFileInfo.originalUrl : actualFilename
-      });
-      
+      imagePathInfo = await getImagePath(filename, uploadsDir);
     } catch (error) {
-      // 清理临时文件
-      tempFiles.forEach(tempFile => {
-        if (fs.existsSync(tempFile)) {
-          try {
-            fs.unlinkSync(tempFile);
-          } catch (e) {
-            // 忽略清理错误
-          }
-        }
-      });
-      
-      // 如果下载失败，清理已下载的文件
-      if (downloadedFileInfo && fs.existsSync(downloadedFileInfo.path)) {
-        try {
-          fs.unlinkSync(downloadedFileInfo.path);
-        } catch (e) {
-          // 忽略清理错误
-        }
+      if (error.message === '文件不存在') {
+        return res.status(404).json({ error: error.message });
       }
-      
-      throw error;
+      return res.status(400).json({ error: error.message });
     }
+    
+    const { actualFilename, inputPath, downloadedFileInfo } = imagePathInfo;
+    
+    // 执行操作链
+    const result = await executeOperationsChain(inputPath, actualFilename, operations, outputDir, 'processed_');
+    
+    const outputPath = `/output/${result.outputFilename}`;
+    const baseUrl = req.protocol + '://' + req.get('host');
+    const outputUrl = `${baseUrl}${outputPath}`;
+    
+    res.json({
+      success: true,
+      outputFile: result.outputFilename,
+      path: outputPath,
+      url: outputUrl,
+      commands: result.commands,
+      source: downloadedFileInfo ? 'url' : 'local',
+      originalFilename: downloadedFileInfo ? downloadedFileInfo.originalUrl : actualFilename
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/process-with-prompt:
+ *   post:
+ *     summary: 通过AI分析自然语言prompt并处理图片
+ *     tags: [AI处理]
+ *     description: 接收自然语言描述和图片URL，通过AI分析生成ImageMagick命令并执行
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - prompt
+ *               - image
+ *             properties:
+ *               prompt:
+ *                 type: string
+ *                 description: 自然语言描述，如"请将这个图片裁剪成方形，然后转变成黑白色"
+ *                 example: "请将这个图片裁剪成方形，然后转变成黑白色"
+ *               image:
+ *                 type: string
+ *                 description: 图片URL（支持http://和https://）或本地文件名
+ *                 example: "https://example.com/image.jpg"
+ *     responses:
+ *       200:
+ *         description: 处理成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 outputFile:
+ *                   type: string
+ *                   description: 输出文件名
+ *                 path:
+ *                   type: string
+ *                   description: 输出文件路径
+ *                 url:
+ *                   type: string
+ *                   description: 输出文件URL
+ *                 operations:
+ *                   type: array
+ *                   description: AI分析出的操作数组
+ *                 command:
+ *                   type: string
+ *                   description: AI分析出的ImageMagick命令描述
+ *                 executedCommands:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: 实际执行的ImageMagick命令
+ *       400:
+ *         description: 参数错误或AI服务不可用
+ *       500:
+ *         description: 处理失败
+ */
+app.post('/api/process-with-prompt', async (req, res) => {
+  try {
+    const { prompt, image } = req.body;
+
+    if (!prompt || typeof prompt !== 'string') {
+      return res.status(400).json({ error: '缺少必要参数: prompt' });
+    }
+
+    if (!image || typeof image !== 'string') {
+      return res.status(400).json({ error: '缺少必要参数: image' });
+    }
+
+    // 检查AI服务是否可用
+    if (!aiService.isAvailable()) {
+      return res.status(400).json({ 
+        error: 'AI服务不可用，请检查配置或设置环境变量' 
+      });
+    }
+
+    // 获取图片路径（处理 URL 或本地文件）
+    let imagePathInfo;
+    try {
+      imagePathInfo = await getImagePath(image, uploadsDir);
+    } catch (error) {
+      if (error.message === '文件不存在') {
+        return res.status(404).json({ error: error.message });
+      }
+      return res.status(400).json({ error: error.message });
+    }
+    
+    const { actualFilename, inputPath, downloadedFileInfo } = imagePathInfo;
+
+    // 获取图片信息（用于AI分析）
+    let imageInfo = null;
+    try {
+      imageInfo = await imagemagick.identify(inputPath);
+    } catch (error) {
+      console.warn('获取图片信息失败:', error.message);
+    }
+
+    // 通过AI分析prompt，生成操作数组
+    console.log(`AI分析prompt: ${prompt}`);
+    const aiResult = await aiService.convertPromptToOperations(prompt, imageInfo);
+    const operations = aiResult.operations;
+    const commandDescription = aiResult.command;
+
+    console.log(`AI分析结果: ${commandDescription}`);
+    console.log(`操作数组:`, JSON.stringify(operations, null, 2));
+
+    // 执行操作链
+    const result = await executeOperationsChain(inputPath, actualFilename, operations, outputDir, 'ai_processed_');
+    
+    const outputPath = `/output/${result.outputFilename}`;
+    const baseUrl = req.protocol + '://' + req.get('host');
+    const outputUrl = `${baseUrl}${outputPath}`;
+    
+    res.json({
+      success: true,
+      outputFile: result.outputFilename,
+      path: outputPath,
+      url: outputUrl,
+      operations: operations,
+      command: commandDescription,
+      executedCommands: result.commands,
+      source: downloadedFileInfo ? 'url' : 'local',
+      originalFilename: downloadedFileInfo ? downloadedFileInfo.originalUrl : actualFilename
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1167,495 +1327,6 @@ app.delete('/api/files/clear', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/process-with-prompt:
- *   post:
- *     summary: 通过AI分析自然语言prompt并处理图片
- *     tags: [AI处理]
- *     description: 接收自然语言描述和图片URL，通过AI分析生成ImageMagick命令并执行
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - prompt
- *               - image
- *             properties:
- *               prompt:
- *                 type: string
- *                 description: 自然语言描述，如"请将这个图片裁剪成方形，然后转变成黑白色"
- *                 example: "请将这个图片裁剪成方形，然后转变成黑白色"
- *               image:
- *                 type: string
- *                 description: 图片URL（支持http://和https://）或本地文件名
- *                 example: "https://example.com/image.jpg"
- *     responses:
- *       200:
- *         description: 处理成功
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 outputFile:
- *                   type: string
- *                   description: 输出文件名
- *                 path:
- *                   type: string
- *                   description: 输出文件路径
- *                 url:
- *                   type: string
- *                   description: 输出文件URL
- *                 operations:
- *                   type: array
- *                   description: AI分析出的操作数组
- *                 command:
- *                   type: string
- *                   description: AI分析出的ImageMagick命令描述
- *                 executedCommands:
- *                   type: array
- *                   items:
- *                     type: string
- *                   description: 实际执行的ImageMagick命令
- *       400:
- *         description: 参数错误或AI服务不可用
- *       500:
- *         description: 处理失败
- */
-app.post('/api/process-with-prompt', async (req, res) => {
-  try {
-    const { prompt, image } = req.body;
-
-    if (!prompt || typeof prompt !== 'string') {
-      return res.status(400).json({ error: '缺少必要参数: prompt' });
-    }
-
-    if (!image || typeof image !== 'string') {
-      return res.status(400).json({ error: '缺少必要参数: image' });
-    }
-
-    // 检查AI服务是否可用
-    if (!aiService.isAvailable()) {
-      return res.status(400).json({ 
-        error: 'AI服务不可用，请检查配置或设置环境变量' 
-      });
-    }
-
-    // 下载或获取图片
-    let downloadedFileInfo = null;
-    let actualFilename = null;
-    let inputPath;
-
-    if (isValidHttpUrl(image)) {
-      try {
-        console.log(`检测到网络图片 URL，开始下载: ${image}`);
-        downloadedFileInfo = await downloadFromUrl(image, uploadsDir);
-        actualFilename = downloadedFileInfo.filename;
-        inputPath = downloadedFileInfo.path;
-        console.log(`网络图片下载成功: ${actualFilename}`);
-      } catch (downloadError) {
-        return res.status(400).json({ 
-          error: `下载网络图片失败: ${downloadError.message}` 
-        });
-      }
-    } else {
-      actualFilename = image;
-      inputPath = path.join(uploadsDir, image);
-      if (!fs.existsSync(inputPath)) {
-        return res.status(404).json({ error: '文件不存在' });
-      }
-    }
-
-    // 获取图片信息（用于AI分析）
-    let imageInfo = null;
-    try {
-      imageInfo = await imagemagick.identify(inputPath);
-    } catch (error) {
-      console.warn('获取图片信息失败:', error.message);
-    }
-
-    // 通过AI分析prompt，生成操作数组
-    console.log(`AI分析prompt: ${prompt}`);
-    const aiResult = await aiService.convertPromptToOperations(prompt, imageInfo);
-    const operations = aiResult.operations;
-    const commandDescription = aiResult.command;
-
-    console.log(`AI分析结果: ${commandDescription}`);
-    console.log(`操作数组:`, JSON.stringify(operations, null, 2));
-
-    // 使用现有的链式处理逻辑执行操作
-    let currentInputPath = inputPath;
-    const executedCommands = [];
-    const tempFiles = [];
-
-    try {
-      for (let i = 0; i < operations.length; i++) {
-        const operation = operations[i];
-        const rawType = operation.type;
-        const rawParams = operation.params || {};
-
-        // 统一归一化：支持基础类型 + 平铺小颗粒类型
-        const { type, params } = normalizeOperation(rawType, rawParams);
-        
-        if (!type) {
-          throw new Error(`操作 ${i + 1} 缺少 type 字段`);
-        }
-        
-        // 生成临时输出文件路径（最后一个操作使用最终输出路径）
-        let outputPath;
-        if (i === operations.length - 1) {
-          // 最后一个操作，使用最终输出文件名
-          const baseName = path.parse(actualFilename).name;
-          const ext = params.format ? `.${params.format}` : path.extname(actualFilename);
-          const outputFilename = `ai_processed_${Date.now()}_${baseName}${ext}`;
-          outputPath = path.join(outputDir, outputFilename);
-        } else {
-          // 中间操作，使用临时文件
-          const tempFilename = `temp_${Date.now()}_${i}.${path.extname(currentInputPath).slice(1) || 'jpg'}`;
-          outputPath = path.join(outputDir, tempFilename);
-          tempFiles.push(outputPath);
-        }
-        
-        let command;
-        
-        // 根据操作类型调用相应的处理函数
-        switch (type) {
-          case 'resize':
-            command = await imagemagick.resize(currentInputPath, outputPath, {
-              width: parseInt(params.width),
-              height: parseInt(params.height),
-              quality: params.quality || 90,
-              maintainAspectRatio: params.maintainAspectRatio !== false
-            });
-            break;
-            
-          case 'crop':
-            command = await imagemagick.crop(currentInputPath, outputPath, {
-              x: parseInt(params.x) || 0,
-              y: parseInt(params.y) || 0,
-              width: parseInt(params.width),
-              height: parseInt(params.height)
-            });
-            break;
-            
-          case 'shapeCrop':
-            const baseName = path.parse(currentInputPath).name;
-            const shapeOutputPath = outputPath.replace(/\.[^.]+$/, '.png');
-            command = await imagemagick.shapeCrop(currentInputPath, shapeOutputPath, {
-              shape: params.shape,
-              x: params.x !== undefined ? parseInt(params.x) : null,
-              y: params.y !== undefined ? parseInt(params.y) : null,
-              width: parseInt(params.width) || 200,
-              height: parseInt(params.height) || 200,
-              backgroundColor: params.backgroundColor || 'transparent'
-            });
-            outputPath = shapeOutputPath;
-            break;
-            
-          case 'rotate':
-            command = await imagemagick.rotate(currentInputPath, outputPath, {
-              degrees: parseFloat(params.degrees) || 0,
-              backgroundColor: params.backgroundColor || '#000000'
-            });
-            break;
-            
-          case 'convert':
-            const convertOutputPath = outputPath.replace(/\.[^.]+$/, `.${params.format || 'jpg'}`);
-            command = await imagemagick.convert(currentInputPath, convertOutputPath, {
-              format: params.format || 'jpg',
-              quality: params.quality || 90
-            });
-            outputPath = convertOutputPath;
-            break;
-            
-          case 'watermark':
-            command = await imagemagick.watermark(currentInputPath, outputPath, {
-              type: params.type || 'text',
-              text: params.text || '',
-              fontSize: parseInt(params.fontSize) || 24,
-              fontFamily: params.fontFamily || 'Microsoft YaHei',
-              color: params.color || '#FFFFFF',
-              strokeColor: params.strokeColor || '',
-              strokeWidth: parseInt(params.strokeWidth) || 0,
-              watermarkImageFilename: params.watermarkImageFilename,
-              watermarkScale: parseFloat(params.watermarkScale) || 1.0,
-              position: params.position || 'bottom-right',
-              x: params.x !== undefined ? parseInt(params.x) : null,
-              y: params.y !== undefined ? parseInt(params.y) : null,
-              opacity: parseFloat(params.opacity) || 1.0
-            });
-            break;
-            
-          case 'adjust':
-            command = await imagemagick.adjust(currentInputPath, outputPath, {
-              brightness: parseFloat(params.brightness) || 0,
-              contrast: parseFloat(params.contrast) || 0,
-              saturation: parseFloat(params.saturation) || 0
-            });
-            break;
-            
-          case 'filter': {
-            command = await imagemagick.applyFilter(currentInputPath, outputPath, {
-              filterType: params.filterType,
-              intensity: params.intensity !== undefined ? parseFloat(params.intensity) || 1 : 1,
-            });
-            break;
-          }
-
-          case 'effects': {
-            // effects 统一走数组形式，支持单个或多个效果
-            let effectsArray = [];
-
-            if (Array.isArray(params.effects) && params.effects.length > 0) {
-              // 显式传入 effects 数组
-              effectsArray = params.effects.map(e => {
-                const { effectType, type: t, ...rest } = e;
-                return {
-                  type: effectType || t,
-                  ...rest,
-                };
-              });
-            } else {
-              // 兼容旧格式：单个 effectType + 其它参数
-              const effect = {
-                type: params.effectType || params.type,
-              };
-
-              Object.keys(params).forEach(k => {
-                if (k === 'effectType' || k === 'type') return;
-                effect[k] = params[k];
-              });
-
-              effectsArray = [effect];
-            }
-
-            command = await imagemagick.applyEffects(currentInputPath, outputPath, effectsArray);
-            break;
-          }
-            
-          default:
-            throw new Error(`不支持的操作类型: ${type}`);
-        }
-        
-        executedCommands.push(command);
-        
-        // 如果当前输入是临时文件，且不是最后一个操作，可以删除
-        if (i > 0 && currentInputPath !== inputPath && fs.existsSync(currentInputPath)) {
-          try {
-            fs.unlinkSync(currentInputPath);
-          } catch (e) {
-            console.warn(`删除临时文件失败: ${currentInputPath}`, e.message);
-          }
-        }
-        
-        // 更新当前输入路径为输出路径
-        currentInputPath = outputPath;
-      }
-      
-      // 清理所有临时文件
-      tempFiles.forEach(tempFile => {
-        if (fs.existsSync(tempFile) && tempFile !== currentInputPath) {
-          try {
-            fs.unlinkSync(tempFile);
-          } catch (e) {
-            console.warn(`清理临时文件失败: ${tempFile}`, e.message);
-          }
-        }
-      });
-      
-      const outputFilename = path.basename(currentInputPath);
-      const outputPath = `/output/${outputFilename}`;
-      
-      // 构建完整的图片 URL
-      const baseUrl = req.protocol + '://' + req.get('host');
-      const outputUrl = `${baseUrl}${outputPath}`;
-      
-      res.json({
-        success: true,
-        outputFile: outputFilename,
-        path: outputPath,
-        url: outputUrl,
-        operations: operations,
-        command: commandDescription,
-        executedCommands: executedCommands,
-        source: downloadedFileInfo ? 'url' : 'local',
-        originalFilename: downloadedFileInfo ? downloadedFileInfo.originalUrl : actualFilename
-      });
-      
-    } catch (error) {
-      // 清理临时文件
-      tempFiles.forEach(tempFile => {
-        if (fs.existsSync(tempFile)) {
-          try {
-            fs.unlinkSync(tempFile);
-          } catch (e) {
-            // 忽略清理错误
-          }
-        }
-      });
-      
-      // 如果下载失败，清理已下载的文件
-      if (downloadedFileInfo && fs.existsSync(downloadedFileInfo.path)) {
-        try {
-          fs.unlinkSync(downloadedFileInfo.path);
-        } catch (e) {
-          // 忽略清理错误
-        }
-      }
-      
-      throw error;
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/execute-command:
- *   post:
- *     summary: 直接执行ImageMagick命令
- *     tags: [AI处理]
- *     description: 接收ImageMagick命令参数数组，直接执行并返回结果
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - image
- *               - command
- *             properties:
- *               image:
- *                 type: string
- *                 description: 图片URL（支持http://和https://）或本地文件名
- *                 example: "https://example.com/image.jpg"
- *               command:
- *                 type: array
- *                 description: ImageMagick命令参数数组
- *                 items:
- *                   type: string
- *                 example: ["-resize", "800x600", "-colorspace", "Gray"]
- *               outputFormat:
- *                 type: string
- *                 description: 输出格式（可选），如jpg, png等
- *                 example: "jpg"
- *     responses:
- *       200:
- *         description: 执行成功
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 outputFile:
- *                   type: string
- *                   description: 输出文件名
- *                 path:
- *                   type: string
- *                   description: 输出文件路径
- *                 url:
- *                   type: string
- *                   description: 输出文件URL
- *                 command:
- *                   type: string
- *                   description: 执行的完整命令
- *       400:
- *         description: 参数错误
- *       500:
- *         description: 执行失败
- */
-app.post('/api/execute-command', async (req, res) => {
-  try {
-    const { image, command, outputFormat } = req.body;
-
-    if (!image || typeof image !== 'string') {
-      return res.status(400).json({ error: '缺少必要参数: image' });
-    }
-
-    if (!Array.isArray(command) || command.length === 0) {
-      return res.status(400).json({ error: '缺少必要参数: command（必须是数组）' });
-    }
-
-    // 下载或获取图片
-    let downloadedFileInfo = null;
-    let actualFilename = null;
-    let inputPath;
-
-    if (isValidHttpUrl(image)) {
-      try {
-        console.log(`检测到网络图片 URL，开始下载: ${image}`);
-        downloadedFileInfo = await downloadFromUrl(image, uploadsDir);
-        actualFilename = downloadedFileInfo.filename;
-        inputPath = downloadedFileInfo.path;
-        console.log(`网络图片下载成功: ${actualFilename}`);
-      } catch (downloadError) {
-        return res.status(400).json({ 
-          error: `下载网络图片失败: ${downloadError.message}` 
-        });
-      }
-    } else {
-      actualFilename = image;
-      inputPath = path.join(uploadsDir, image);
-      if (!fs.existsSync(inputPath)) {
-        return res.status(404).json({ error: '文件不存在' });
-      }
-    }
-
-    // 生成输出文件路径
-    const baseName = path.parse(actualFilename).name;
-    const ext = outputFormat ? `.${outputFormat}` : path.extname(actualFilename);
-    const outputFilename = `command_processed_${Date.now()}_${baseName}${ext}`;
-    const outputPath = path.join(outputDir, outputFilename);
-
-    // 构建命令参数：输入文件 + 用户命令 + 输出文件
-    const commandArgs = [inputPath, ...command, outputPath];
-
-    // 执行命令
-    console.log(`执行ImageMagick命令:`, commandArgs);
-    const result = await imagemagick.executeCommand(commandArgs);
-    const fullCommand = result.command;
-
-    // 检查输出文件是否生成
-    if (!fs.existsSync(outputPath)) {
-      throw new Error('命令执行失败，输出文件未生成');
-    }
-
-    const outputPathUrl = `/output/${outputFilename}`;
-    const baseUrl = req.protocol + '://' + req.get('host');
-    const outputUrl = `${baseUrl}${outputPathUrl}`;
-
-    res.json({
-      success: true,
-      outputFile: outputFilename,
-      path: outputPathUrl,
-      url: outputUrl,
-      command: fullCommand,
-      source: downloadedFileInfo ? 'url' : 'local',
-      originalFilename: downloadedFileInfo ? downloadedFileInfo.originalUrl : actualFilename
-    });
-
-    // 清理下载的临时文件（可选）
-    // if (downloadedFileInfo && fs.existsSync(downloadedFileInfo.path)) {
-    //   try {
-    //     fs.unlinkSync(downloadedFileInfo.path);
-    //   } catch (e) {
-    //     console.warn(`清理下载的临时文件失败: ${downloadedFileInfo.path}`, e.message);
-    //   }
-    // }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // 格式化文件大小
 function formatFileSize(bytes) {
   if (bytes === 0) return '0 B';
@@ -1664,6 +1335,305 @@ function formatFileSize(bytes) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
+
+/**
+ * @swagger
+ * /api/health:
+ *   get:
+ *     summary: 健康检查
+ *     tags: [Health]
+ *     description: 检查服务健康状态和 ImageMagick 安装状态
+ *     responses:
+ *       200:
+ *         description: 服务状态
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/HealthResponse'
+ *       500:
+ *         description: 服务异常
+ */
+app.get('/api/health', async (req, res) => {
+  try {
+    const imagemagickStatus = await imagemagick.checkInstallation();
+    res.json({
+      status: 'healthy',
+      imagemagick: imagemagickStatus
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/imagemagick-status:
+ *   get:
+ *     summary: 检测 ImageMagick 安装状态
+ *     tags: [Health]
+ *     description: 检测 ImageMagick 是否已安装及其版本信息
+ *     responses:
+ *       200:
+ *         description: 检测成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ImageMagickStatus'
+ *       500:
+ *         description: 检测失败
+ */
+app.get('/api/imagemagick-status', async (req, res) => {
+  try {
+    const status = await imagemagick.checkInstallation();
+    res.json({
+      success: true,
+      ...status
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 路由：提供上传的文件
+app.use('/uploads', express.static(uploadsDir));
+app.use('/output', express.static(outputDir));
+
+/**
+ * @swagger
+ * /api/files/list:
+ *   get:
+ *     summary: 获取文件列表
+ *     tags: [文件管理]
+ *     parameters:
+ *       - in: query
+ *         name: directory
+ *         schema:
+ *           type: string
+ *           enum: [uploads, output]
+ *         required: true
+ *         description: 目录名称 (uploads 或 output)
+ *     responses:
+ *       200:
+ *         description: 文件列表
+ *       500:
+ *         description: 获取失败
+ */
+app.get('/api/files/list', async (req, res) => {
+  try {
+    const { directory } = req.query;
+    
+    if (!directory || !['uploads', 'output'].includes(directory)) {
+      return res.status(400).json({
+        success: false,
+        error: '目录参数无效，必须是 uploads 或 output'
+      });
+    }
+    
+    const dirPath = directory === 'uploads' ? uploadsDir : outputDir;
+    
+    if (!fs.existsSync(dirPath)) {
+      return res.json({
+        success: true,
+        files: []
+      });
+    }
+    
+    const files = fs.readdirSync(dirPath)
+      .map(filename => {
+        const filePath = path.join(dirPath, filename);
+        const stats = fs.statSync(filePath);
+        
+        return {
+          name: filename,
+          size: stats.size,
+          sizeFormatted: formatFileSize(stats.size),
+          modified: stats.mtime,
+          isDirectory: stats.isDirectory(),
+          url: `/${directory}/${filename}`
+        };
+      })
+      .filter(file => !file.isDirectory) // 只返回文件，不返回目录
+      .sort((a, b) => b.modified - a.modified); // 按修改时间倒序
+    
+    res.json({
+      success: true,
+      files,
+      directory,
+      totalSize: files.reduce((sum, file) => sum + file.size, 0),
+      totalSizeFormatted: formatFileSize(files.reduce((sum, file) => sum + file.size, 0))
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/files/delete:
+ *   delete:
+ *     summary: 删除文件
+ *     tags: [文件管理]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - directory
+ *               - filename
+ *             properties:
+ *               directory:
+ *                 type: string
+ *                 enum: [uploads, output]
+ *               filename:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *       400:
+ *         description: 参数错误
+ *       500:
+ *         description: 删除失败
+ */
+app.delete('/api/files/delete', async (req, res) => {
+  try {
+    const { directory, filename } = req.body;
+    
+    if (!directory || !['uploads', 'output'].includes(directory)) {
+      return res.status(400).json({
+        success: false,
+        error: '目录参数无效，必须是 uploads 或 output'
+      });
+    }
+    
+    if (!filename) {
+      return res.status(400).json({
+        success: false,
+        error: '文件名不能为空'
+      });
+    }
+    
+    // 安全检查：防止路径遍历攻击
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({
+        success: false,
+        error: '文件名包含非法字符'
+      });
+    }
+    
+    const dirPath = directory === 'uploads' ? uploadsDir : outputDir;
+    const filePath = path.join(dirPath, filename);
+    
+    // 确保文件在指定目录内
+    if (!filePath.startsWith(dirPath)) {
+      return res.status(400).json({
+        success: false,
+        error: '文件路径无效'
+      });
+    }
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: '文件不存在'
+      });
+    }
+    
+    fs.unlinkSync(filePath);
+    
+    res.json({
+      success: true,
+      message: '文件删除成功'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/files/clear:
+ *   delete:
+ *     summary: 清空目录
+ *     tags: [文件管理]
+ *     parameters:
+ *       - in: query
+ *         name: directory
+ *         schema:
+ *           type: string
+ *           enum: [uploads, output]
+ *         required: true
+ *         description: 目录名称 (uploads 或 output)
+ *     responses:
+ *       200:
+ *         description: 清空成功
+ *       400:
+ *         description: 参数错误
+ *       500:
+ *         description: 清空失败
+ */
+app.delete('/api/files/clear', async (req, res) => {
+  try {
+    const { directory } = req.query;
+    
+    if (!directory || !['uploads', 'output'].includes(directory)) {
+      return res.status(400).json({
+        success: false,
+        error: '目录参数无效，必须是 uploads 或 output'
+      });
+    }
+    
+    const dirPath = directory === 'uploads' ? uploadsDir : outputDir;
+    
+    if (!fs.existsSync(dirPath)) {
+      return res.json({
+        success: true,
+        message: '目录不存在或已为空'
+      });
+    }
+    
+    const files = fs.readdirSync(dirPath);
+    let deletedCount = 0;
+    let totalSize = 0;
+    
+    files.forEach(filename => {
+      const filePath = path.join(dirPath, filename);
+      const stats = fs.statSync(filePath);
+      
+      if (stats.isFile()) {
+        totalSize += stats.size;
+        fs.unlinkSync(filePath);
+        deletedCount++;
+      }
+    });
+    
+    res.json({
+      success: true,
+      message: `成功删除 ${deletedCount} 个文件`,
+      deletedCount,
+      totalSize,
+      totalSizeFormatted: formatFileSize(totalSize)
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // 启动服务器
 app.listen(PORT, () => {

@@ -68,7 +68,7 @@ const options = {
       },
       {
         name: 'AI处理',
-        description: 'AI智能处理和直接执行命令',
+        description: 'AI智能处理',
       },
       {
         name: 'Process',

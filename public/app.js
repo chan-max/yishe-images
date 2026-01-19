@@ -118,8 +118,7 @@ function initApp() {
           effectsUrlUpload: false,
           effects: false,
           chainProcess: false,
-          aiProcess: false,
-          commandExecute: false
+          aiProcess: false
         },
         // 链式处理相关状态
         chainProcessImage: null,
@@ -158,15 +157,7 @@ function initApp() {
         aiProcessResultFilename: null,
         aiProcessOperations: null,
         aiProcessCommand: null,
-        aiProcessExecutedCommands: null,
-        // 直接执行命令相关状态
-        commandExecuteImageUrl: '',
-        commandExecuteImage: null,
-        commandExecuteImageInfo: null,
-        commandExecuteCommand: '',
-        commandExecuteResultImage: null,
-        commandExecuteResultFilename: null,
-        commandExecuteResultCommand: null
+        aiProcessExecutedCommands: null
       });
 
       // 操作类型定义（从配置文件加载）
@@ -284,7 +275,6 @@ function initApp() {
         { id: 'analyze', name: '图片分析', icon: 'search' },
         { id: 'chain-process', name: '链式处理', icon: 'sitemap' },
         { id: 'ai-process', name: 'AI智能处理', icon: 'magic' },
-        { id: 'command-execute', name: '直接执行命令', icon: 'terminal' },
         { id: 'files', name: '文件管理', icon: 'folder' }
       ];
 
@@ -1969,103 +1959,6 @@ function initApp() {
         state.aiProcessExecutedCommands = null;
       }
       
-      async function updateCommandExecuteImagePreview() {
-        if (!state.commandExecuteImageUrl || !state.commandExecuteImageUrl.trim()) {
-          state.commandExecuteImage = null;
-          state.commandExecuteImageInfo = null;
-          return;
-        }
-        
-        // 判断是URL还是本地文件名
-        if (state.commandExecuteImageUrl.startsWith('http://') || state.commandExecuteImageUrl.startsWith('https://')) {
-          // 网络URL，直接使用
-          state.commandExecuteImage = state.commandExecuteImageUrl;
-        } else {
-          // 本地文件名
-          state.commandExecuteImage = `${BASE_URL}/uploads/${state.commandExecuteImageUrl}`;
-        }
-        
-        // 尝试获取图片信息
-        try {
-          if (!state.commandExecuteImageUrl.startsWith('http://') && !state.commandExecuteImageUrl.startsWith('https://')) {
-            const { data } = await axios.post(`${BASE_URL}/api/info`, {
-              filename: state.commandExecuteImageUrl
-            });
-            if (data.success) {
-              state.commandExecuteImageInfo = data.info;
-            }
-          }
-        } catch (e) {
-          console.warn('获取图片信息失败:', e);
-        }
-      }
-      
-      async function handleCommandExecute() {
-        if (!state.commandExecuteImageUrl || !state.commandExecuteImageUrl.trim()) {
-          addDebugLog('请输入图片地址（文件名或 URL）', 'error');
-          return;
-        }
-        
-        if (!state.commandExecuteCommand || !state.commandExecuteCommand.trim()) {
-          addDebugLog('请输入ImageMagick命令', 'error');
-          return;
-        }
-        
-        // 解析命令字符串为数组
-        let commandArray = [];
-        try {
-          // 尝试解析为JSON数组
-          commandArray = JSON.parse(state.commandExecuteCommand);
-          if (!Array.isArray(commandArray)) {
-            throw new Error('不是数组');
-          }
-        } catch (e) {
-          // 如果不是JSON，尝试按空格分割（简单处理）
-          commandArray = state.commandExecuteCommand.trim().split(/\s+/).filter(cmd => cmd.length > 0);
-        }
-        
-        if (commandArray.length === 0) {
-          addDebugLog('命令不能为空', 'error');
-          return;
-        }
-        
-        state.loading.commandExecute = true;
-        addDebugLog('开始执行命令...', 'info');
-        addDebugLog(`命令: ${JSON.stringify(commandArray)}`, 'info');
-        
-        try {
-          const payload = {
-            image: state.commandExecuteImageUrl,
-            command: commandArray
-          };
-          
-          const { data } = await axios.post(`${BASE_URL}/api/execute-command`, payload);
-          
-          if (data.success) {
-            state.commandExecuteResultImage = `${BASE_URL}${data.path}`;
-            state.commandExecuteResultFilename = data.outputFile;
-            state.commandExecuteResultCommand = data.command;
-            addDebugLog('命令执行成功', 'success');
-            addDebugLog(`执行的命令: ${data.command}`, 'info');
-          } else {
-            addDebugLog(`执行失败: ${data.error}`, 'error');
-          }
-        } catch (e) {
-          addDebugLog(`执行错误: ${e.response?.data?.error || e.message}`, 'error');
-        } finally {
-          state.loading.commandExecute = false;
-        }
-      }
-      
-      function clearCommandExecute() {
-        state.commandExecuteImageUrl = '';
-        state.commandExecuteImage = null;
-        state.commandExecuteImageInfo = null;
-        state.commandExecuteCommand = '';
-        state.commandExecuteResultImage = null;
-        state.commandExecuteResultFilename = null;
-        state.commandExecuteResultCommand = null;
-      }
       
       // 使用效果结果作为新源图片
       function useEffectsAsSource() {
@@ -2173,9 +2066,6 @@ function initApp() {
         updateAiProcessImagePreview,
         handleAiProcess,
         clearAiProcess,
-        updateCommandExecuteImagePreview,
-        handleCommandExecute,
-        clearCommandExecute,
         // 文件管理相关函数
         loadFilesList,
         switchFilesDirectory,
